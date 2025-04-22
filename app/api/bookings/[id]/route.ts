@@ -6,12 +6,15 @@ import {
     checkBookingConflicts,
 } from "@/lib/db"
 
-export async function GET(
-    request: NextRequest,
-    context: { params: { id: string } }
-) {
+export async function GET(request: Request) {
     try {
-        const id = context.params.id
+        const url = new URL(request.url)
+        const id = url.pathname.split("/").pop() // Extract the 'id' from the URL
+
+        if (!id) {
+            return NextResponse.json({ message: "Booking ID is required" }, { status: 400 })
+        }
+
         const booking = await getBookingById(id)
 
         if (!booking) {
@@ -25,12 +28,15 @@ export async function GET(
     }
 }
 
-export async function PUT(
-    request: NextRequest,
-    context: { params: { id: string } }
-) {
+export async function PUT(request: Request) {
     try {
-        const id = context.params.id
+        const url = new URL(request.url)
+        const id = url.pathname.split("/").pop() // Extract the 'id' from the URL
+
+        if (!id) {
+            return NextResponse.json({ message: "Booking ID is required" }, { status: 400 })
+        }
+
         const body = await request.json()
 
         const requiredFields = ["date", "startTime", "endTime", "groupName", "className"]
@@ -77,12 +83,15 @@ export async function PUT(
     }
 }
 
-export async function DELETE(
-    request: NextRequest,
-    context: { params: { id: string } }
-) {
+export async function DELETE(request: Request) {
     try {
-        const id = context.params.id
+        const url = new URL(request.url)
+        const id = url.pathname.split("/").pop() // Extract the 'id' from the URL
+
+        if (!id) {
+            return NextResponse.json({ message: "Booking ID is required" }, { status: 400 })
+        }
+
         const success = await removeBooking(id)
 
         if (!success) {
