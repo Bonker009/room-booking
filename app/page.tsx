@@ -364,7 +364,7 @@ export default function Home() {
                     </Card>
                 </div>
 
-                <Card className="border-none shadow-lg py-0">
+                <Card className="border-none shadow-lg pt-0 pb-4">
                     <CardHeader className="pb-3 bg-gradient-to-r from-sky-50 to-indigo-50 rounded-t-lg pt-8">
                         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                             <div>
