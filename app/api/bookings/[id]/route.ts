@@ -1,9 +1,17 @@
-import { NextResponse } from "next/server"
-import { getBookingById, updateBooking, removeBooking, checkBookingConflicts } from "@/lib/db"
+import { NextRequest, NextResponse } from "next/server"
+import {
+    getBookingById,
+    updateBooking,
+    removeBooking,
+    checkBookingConflicts,
+} from "@/lib/db"
 
-export async function GET(request: Request, { params }: { params: { id: string } }) {
+export async function GET(
+    request: NextRequest,
+    context: { params: { id: string } }
+) {
     try {
-        const id = params.id
+        const id = context.params.id
         const booking = await getBookingById(id)
 
         if (!booking) {
@@ -17,12 +25,14 @@ export async function GET(request: Request, { params }: { params: { id: string }
     }
 }
 
-export async function PUT(request: Request, { params }: { params: { id: string } }) {
+export async function PUT(
+    request: NextRequest,
+    context: { params: { id: string } }
+) {
     try {
-        const id = params.id
+        const id = context.params.id
         const body = await request.json()
 
-        // Validate required fields
         const requiredFields = ["date", "startTime", "endTime", "groupName", "className"]
         for (const field of requiredFields) {
             if (!body[field]) {
@@ -30,13 +40,11 @@ export async function PUT(request: Request, { params }: { params: { id: string }
             }
         }
 
-        // Check if booking exists
         const existingBooking = await getBookingById(id)
         if (!existingBooking) {
             return NextResponse.json({ message: "Booking not found" }, { status: 404 })
         }
 
-        // Check for booking conflicts (excluding this booking)
         const hasConflict = await checkBookingConflicts(
             {
                 date: body.date,
@@ -44,14 +52,16 @@ export async function PUT(request: Request, { params }: { params: { id: string }
                 endTime: body.endTime,
                 className: body.className,
             },
-            id,
+            id
         )
 
         if (hasConflict) {
-            return NextResponse.json({ message: "This room is already booked during this time" }, { status: 409 })
+            return NextResponse.json(
+                { message: "This room is already booked during this time" },
+                { status: 409 }
+            )
         }
 
-        // Update the booking
         const updatedBooking = await updateBooking(id, {
             date: body.date,
             startTime: body.startTime,
@@ -67,9 +77,12 @@ export async function PUT(request: Request, { params }: { params: { id: string }
     }
 }
 
-export async function DELETE(request: Request, { params }: { params: { id: string } }) {
+export async function DELETE(
+    request: NextRequest,
+    context: { params: { id: string } }
+) {
     try {
-        const id = params.id
+        const id = context.params.id
         const success = await removeBooking(id)
 
         if (!success) {
