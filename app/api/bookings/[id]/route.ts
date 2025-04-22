@@ -1,9 +1,15 @@
 import { NextResponse } from "next/server"
 import { getBookingById, updateBooking, removeBooking, checkBookingConflicts } from "@/lib/db"
 
-export async function GET(request: Request, { params }: { params: { id: string } }) {
+export async function GET(request: Request) {
     try {
-        const id = params.id
+        const url = new URL(request.url)
+        const id = url.pathname.split("/").pop() // Extract the 'id' from the URL
+
+        if (!id) {
+            return NextResponse.json({ message: "Booking ID is required" }, { status: 400 })
+        }
+
         const booking = await getBookingById(id)
 
         if (!booking) {
@@ -17,9 +23,15 @@ export async function GET(request: Request, { params }: { params: { id: string }
     }
 }
 
-export async function PUT(request: Request, { params }: { params: { id: string } }) {
+export async function PUT(request: Request) {
     try {
-        const id = params.id
+        const url = new URL(request.url)
+        const id = url.pathname.split("/").pop() // Extract the 'id' from the URL
+
+        if (!id) {
+            return NextResponse.json({ message: "Booking ID is required" }, { status: 400 })
+        }
+
         const body = await request.json()
 
         // Validate required fields
@@ -67,9 +79,15 @@ export async function PUT(request: Request, { params }: { params: { id: string }
     }
 }
 
-export async function DELETE(request: Request, { params }: { params: { id: string } }) {
+export async function DELETE(request: Request) {
     try {
-        const id = params.id
+        const url = new URL(request.url)
+        const id = url.pathname.split("/").pop() // Extract the 'id' from the URL
+
+        if (!id) {
+            return NextResponse.json({ message: "Booking ID is required" }, { status: 400 })
+        }
+
         const success = await removeBooking(id)
 
         if (!success) {
