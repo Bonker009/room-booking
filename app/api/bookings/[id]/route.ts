@@ -1,5 +1,10 @@
-import { NextResponse } from "next/server"
-import { getBookingById, updateBooking, removeBooking, checkBookingConflicts } from "@/lib/db"
+import { NextRequest, NextResponse } from "next/server"
+import {
+    getBookingById,
+    updateBooking,
+    removeBooking,
+    checkBookingConflicts,
+} from "@/lib/db"
 
 export async function GET(request: Request) {
     try {
@@ -34,7 +39,6 @@ export async function PUT(request: Request) {
 
         const body = await request.json()
 
-        // Validate required fields
         const requiredFields = ["date", "startTime", "endTime", "groupName", "className"]
         for (const field of requiredFields) {
             if (!body[field]) {
@@ -42,13 +46,11 @@ export async function PUT(request: Request) {
             }
         }
 
-        // Check if booking exists
         const existingBooking = await getBookingById(id)
         if (!existingBooking) {
             return NextResponse.json({ message: "Booking not found" }, { status: 404 })
         }
 
-        // Check for booking conflicts (excluding this booking)
         const hasConflict = await checkBookingConflicts(
             {
                 date: body.date,
@@ -56,14 +58,16 @@ export async function PUT(request: Request) {
                 endTime: body.endTime,
                 className: body.className,
             },
-            id,
+            id
         )
 
         if (hasConflict) {
-            return NextResponse.json({ message: "This room is already booked during this time" }, { status: 409 })
+            return NextResponse.json(
+                { message: "This room is already booked during this time" },
+                { status: 409 }
+            )
         }
 
-        // Update the booking
         const updatedBooking = await updateBooking(id, {
             date: body.date,
             startTime: body.startTime,
