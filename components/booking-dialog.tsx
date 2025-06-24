@@ -196,6 +196,7 @@ export function BookingDialog({
         endTime,
         groupName,
         className: room,
+        bookedBy,
       });
 
       // Reset form
@@ -205,6 +206,7 @@ export function BookingDialog({
         setEndTime("");
         setGroupName("");
         setRoom("");
+        setBookedBy("");
       }
 
       onOpenChange(false);
