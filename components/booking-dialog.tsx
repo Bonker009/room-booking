@@ -4,7 +4,13 @@ import type React from "react";
 
 import { useState, useEffect } from "react";
 import { format } from "date-fns";
-import { CalendarIcon, Clock, Users, Building2 } from "lucide-react";
+import {
+  CalendarIcon,
+  Clock,
+  Users,
+  Building2,
+  PersonStandingIcon,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
