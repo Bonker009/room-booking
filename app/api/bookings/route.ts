@@ -125,6 +125,7 @@ export async function POST(request: Request) {
       endTime: body.endTime,
       groupName: body.groupName,
       className: body.className,
+      bookedBy: body.bookedBy,
       description: body.description,
       attendees: body.attendees,
       status: body.status,
