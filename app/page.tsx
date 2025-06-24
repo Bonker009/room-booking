@@ -559,6 +559,14 @@ export default function Home() {
                                 </Badge>
                               </td>
                               <td className="px-6 py-4 whitespace-nowrap">
+                                <div className="flex items-center">
+                                  <PersonStandingIcon className="h-4 w-4 mr-2 text-sky-500" />
+                                  <span className="font-medium">
+                                    {booking.bookedBy || "N/A"}
+                                  </span>
+                                </div>
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap">
                                 <div className="flex space-x-2">
                                   <Button
                                     variant="ghost"
