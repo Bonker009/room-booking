@@ -201,6 +201,7 @@ export default function Home() {
           endTime: formData.endTime,
           groupName: formData.groupName,
           className: formData.className,
+          bookedBy: formData.bookedBy,
         }),
       });
 
