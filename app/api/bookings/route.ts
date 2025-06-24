@@ -132,6 +132,9 @@ export async function POST(request: Request) {
       status: body.status,
     });
 
+    // Revalidate bookings cache
+    revalidateTag("bookings");
+
     return NextResponse.json(newBooking, { status: 201 });
   } catch (error) {
     console.error("Error creating booking:", error);
