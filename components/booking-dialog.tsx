@@ -414,6 +414,29 @@ export function BookingDialog({
             )}
           </div>
 
+          {/* Booked By Field */}
+          <div className="space-y-2">
+            <Label htmlFor="bookedBy" className="text-sm font-medium">
+              Booked By
+            </Label>
+            <div className="relative">
+              <PersonStandingIcon className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                id="bookedBy"
+                placeholder="Enter name of person booking"
+                className={cn(
+                  "pl-10",
+                  errors.bookedBy ? "border-red-500" : "border-input",
+                )}
+                value={bookedBy}
+                onChange={(e) => setBookedBy(e.target.value)}
+              />
+            </div>
+            {errors.bookedBy && (
+              <p className="text-sm text-red-500">{errors.bookedBy}</p>
+            )}
+          </div>
+
           {errors.conflict && (
             <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md flex items-start">
               <div className="flex-shrink-0 mr-2 mt-0.5">⚠️</div>
