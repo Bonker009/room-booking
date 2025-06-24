@@ -166,6 +166,9 @@ export default function Home() {
         const newBooking = await res.json();
         setBookings((prev) => [newBooking, ...prev]);
 
+        // Refresh bookings from server
+        await fetchBookings();
+
         toast.success("Booking created", {
           description: `Room booked for ${format(new Date(dateString), "PPP")}`,
         });
@@ -213,6 +216,9 @@ export default function Home() {
           ),
         );
         setEditingBooking(null);
+
+        // Refresh bookings from server
+        await fetchBookings();
 
         toast.success("Booking updated", {
           description: `Room booking for ${format(new Date(dateString), "PPP")} has been updated`,
