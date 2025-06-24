@@ -115,6 +115,8 @@ export function BookingDialog({
     if (!endTime) newErrors.endTime = "Please select an end time";
     if (!groupName.trim()) newErrors.groupName = "Please enter a group name";
     if (!room) newErrors.room = "Please select a room";
+    if (!bookedBy.trim())
+      newErrors.bookedBy = "Please enter who is booking this room";
 
     // Validate time format and logic
     if (startTime && endTime) {
