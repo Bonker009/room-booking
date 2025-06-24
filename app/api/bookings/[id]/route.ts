@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import {
   getBookingById,
   updateBooking,
@@ -90,6 +91,9 @@ export async function PUT(
       bookedBy: body.bookedBy,
     });
 
+    // Revalidate bookings cache
+    revalidateTag("bookings");
+
     return NextResponse.json(updatedBooking);
   } catch (error) {
     console.error("Error updating booking:", error);
@@ -114,6 +118,9 @@ export async function DELETE(
         { status: 404 },
       );
     }
+
+    // Revalidate bookings cache
+    revalidateTag("bookings");
 
     return NextResponse.json({ success: true });
   } catch (error) {
