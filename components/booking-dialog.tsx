@@ -72,6 +72,7 @@ export function BookingDialog({
   const [endTime, setEndTime] = useState("");
   const [groupName, setGroupName] = useState("");
   const [room, setRoom] = useState("");
+  const [bookedBy, setBookedBy] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   // Populate form when editing
