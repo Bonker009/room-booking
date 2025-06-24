@@ -83,6 +83,7 @@ export function BookingDialog({
       setEndTime(editingBooking.endTime);
       setGroupName(editingBooking.groupName);
       setRoom(editingBooking.className);
+      setBookedBy(editingBooking.bookedBy || "");
     } else {
       // Set default values for new booking
       const now = new Date();
@@ -102,6 +103,7 @@ export function BookingDialog({
 
       setGroupName("");
       setRoom("");
+      setBookedBy("");
     }
   }, [editingBooking, open]);
 
