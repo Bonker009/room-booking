@@ -9,10 +9,10 @@ import {
 
 export async function GET(
   request: NextRequest,
-  context: { params: { id: string } },
+  { params }: { params: { id: string } },
 ) {
   try {
-    const id = context.params.id;
+    const id = params.id;
     const booking = await getBookingById(id);
 
     if (!booking) {
@@ -34,10 +34,10 @@ export async function GET(
 
 export async function PUT(
   request: NextRequest,
-  context: { params: { id: string } },
+  { params }: { params: { id: string } },
 ) {
   try {
-    const id = context.params.id;
+    const id = params.id;
     const body = await request.json();
 
     const requiredFields = [
@@ -106,10 +106,10 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  context: { params: { id: string } },
+  { params }: { params: { id: string } },
 ) {
   try {
-    const id = context.params.id;
+    const id = params.id;
     const success = await removeBooking(id);
 
     if (!success) {
