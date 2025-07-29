@@ -69,6 +69,8 @@ export default function Home() {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [filteredBookings, setFilteredBookings] = useState<Booking[]>([]);
   const [filter, setFilter] = useState("");
+  const [dateFilter, setDateFilter] = useState<Date | undefined>(undefined);
+  const [roomFilter, setRoomFilter] = useState<string>("");
   const [isLoading, setIsLoading] = useState(true);
   const [openDialog, setOpenDialog] = useState(false);
   const [openEditDialog, setOpenEditDialog] = useState(false);
