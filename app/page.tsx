@@ -761,11 +761,20 @@ export default function Home() {
                       No bookings found
                     </h3>
                     <p className="text-sky-600 mt-1">
-                      {filter
-                        ? "Try adjusting your search or filters"
+                      {(filter || dateFilter || roomFilter)
+                        ? "No bookings match your current filters. Try adjusting your search criteria."
                         : "Create your first booking to get started"}
                     </p>
-                    {!filter && (
+                    {(filter || dateFilter || roomFilter) ? (
+                      <Button
+                        variant="outline"
+                        className="mt-4 border-sky-200 text-sky-600 hover:bg-sky-100"
+                        onClick={clearAllFilters}
+                      >
+                        <X className="h-4 w-4 mr-2" />
+                        Clear All Filters
+                      </Button>
+                    ) : (
                       <Button
                         className="mt-4 bg-gradient-to-r from-sky-500 to-indigo-500 hover:from-sky-600 hover:to-indigo-600"
                         onClick={() => setOpenDialog(true)}
