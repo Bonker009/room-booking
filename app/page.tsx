@@ -294,6 +294,13 @@ export default function Home() {
     }
   };
 
+  const clearAllFilters = () => {
+    setFilter("");
+    setDateFilter(undefined);
+    setRoomFilter("");
+    setActiveTab("all");
+  };
+
   const formatDate = (dateString: string) => {
     try {
       return format(new Date(dateString), "PPP");
