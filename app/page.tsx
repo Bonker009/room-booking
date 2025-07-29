@@ -399,13 +399,7 @@ export default function Home() {
                 <PersonStandingIcon className="h-4 w-4 mr-1" />
                 <span>Founder</span>
               </Link>
-              <Link
-                href="/subscription"
-                className="flex items-center text-sky-600 hover:text-sky-800"
-              >
-                <CreditCard className="h-4 w-4 mr-1" />
-                <span>Subscription</span>
-              </Link>
+           
             </nav>
           </div>
         </div>
@@ -463,6 +457,7 @@ export default function Home() {
                     placeholder="Search bookings..."
                     className="pl-10 w-full sm:w-[250px] border-sky-200 focus-visible:ring-sky-500"
                     value={filter}
+                    maxLength={20}
                     onChange={(e) => setFilter(e.target.value)}
                   />
                   {filter && (
