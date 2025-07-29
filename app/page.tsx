@@ -85,7 +85,7 @@ export default function Home() {
   // Filter bookings when filter or bookings change
   useEffect(() => {
     filterBookings();
-  }, [filter, bookings, activeTab]);
+  }, [filter, dateFilter, roomFilter, bookings, activeTab]);
 
   const fetchBookings = async () => {
     setIsLoading(true);
