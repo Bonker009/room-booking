@@ -577,6 +577,39 @@ export default function Home() {
               </Tabs>
             </div>
 
+            {/* Filter Summary */}
+            {!isLoading && (
+              <div className="mb-4 flex items-center justify-between">
+                <p className="text-sm text-gray-600">
+                  Showing {filteredBookings.length} of {bookings.length} booking{bookings.length !== 1 ? 's' : ''}
+                  {(filter || dateFilter || roomFilter) && (
+                    <span className="ml-1 text-sky-600 font-medium">
+                      (filtered)
+                    </span>
+                  )}
+                </p>
+                {(filter || dateFilter || roomFilter) && (
+                  <div className="flex items-center gap-2 text-xs">
+                    {filter && (
+                      <Badge variant="secondary" className="bg-sky-100 text-sky-700">
+                        Search: "{filter}"
+                      </Badge>
+                    )}
+                    {dateFilter && (
+                      <Badge variant="secondary" className="bg-sky-100 text-sky-700">
+                        Date: {format(dateFilter, "MMM d, yyyy")}
+                      </Badge>
+                    )}
+                    {roomFilter && (
+                      <Badge variant="secondary" className="bg-sky-100 text-sky-700">
+                        Room: {roomFilter}
+                      </Badge>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
             {isLoading ? (
               <div className="flex justify-center items-center py-12">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-sky-600"></div>
