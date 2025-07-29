@@ -448,7 +448,8 @@ export default function Home() {
                 </CardDescription>
               </div>
 
-              <div className="flex flex-col sm:flex-row gap-3">
+              <div className="flex flex-col lg:flex-row gap-3">
+                {/* Search Input */}
                 <div className="relative">
                   <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
                   <Input
@@ -468,6 +469,65 @@ export default function Home() {
                     </Button>
                   )}
                 </div>
+
+                {/* Date Filter */}
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "w-full sm:w-[200px] justify-start text-left font-normal border-sky-200 hover:bg-sky-50",
+                        !dateFilter && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {dateFilter ? format(dateFilter, "PPP") : "Filter by date"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <CalendarComponent
+                      mode="single"
+                      selected={dateFilter}
+                      onSelect={setDateFilter}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+
+                {/* Room Filter */}
+                <Select value={roomFilter} onValueChange={setRoomFilter}>
+                  <SelectTrigger className="w-full sm:w-[180px] border-sky-200 focus:ring-sky-500">
+                    <div className="flex items-center">
+                      <Filter className="mr-2 h-4 w-4 text-muted-foreground" />
+                      <SelectValue placeholder="Filter by room" />
+                    </div>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="BTB">BTB</SelectItem>
+                    <SelectItem value="SR">SR</SelectItem>
+                    <SelectItem value="PP">PP</SelectItem>
+                    <SelectItem value="KPS">KPS</SelectItem>
+                    <SelectItem value="PVH">PVH</SelectItem>
+                    <SelectItem value="Seminar">Seminar</SelectItem>
+                    <SelectItem value="Koh Kong">Koh Kong</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                {/* Clear Filters Button */}
+                {(dateFilter || roomFilter) && (
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-10 w-10 border-sky-200 hover:bg-sky-50"
+                    onClick={() => {
+                      setDateFilter(undefined);
+                      setRoomFilter("");
+                    }}
+                    title="Clear filters"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                )}
               </div>
             </div>
           </CardHeader>
