@@ -58,6 +58,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import Link from "next/link";
 import { BookingDialog } from "@/components/booking-dialog";
+import { cn } from "@/lib/utils";
 
 // Type definitions
 interface Booking {
