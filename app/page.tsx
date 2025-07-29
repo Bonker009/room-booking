@@ -521,18 +521,15 @@ export default function Home() {
                 </Select>
 
                 {/* Clear Filters Button */}
-                {(dateFilter || roomFilter) && (
+                {(filter || dateFilter || roomFilter) && (
                   <Button
                     variant="outline"
-                    size="icon"
-                    className="h-10 w-10 border-sky-200 hover:bg-sky-50"
-                    onClick={() => {
-                      setDateFilter(undefined);
-                      setRoomFilter("");
-                    }}
-                    title="Clear filters"
+                    className="h-10 px-3 border-sky-200 hover:bg-sky-50 text-sm"
+                    onClick={clearAllFilters}
+                    title="Clear all filters"
                   >
-                    <X className="h-4 w-4" />
+                    <X className="h-4 w-4 mr-1" />
+                    Clear All
                   </Button>
                 )}
               </div>
