@@ -114,22 +114,35 @@ export default function Home() {
     // Filter by search term
     if (filter) {
       filtered = filtered.filter((b) =>
-        [b.date, b.startTime, b.endTime, b.groupName, b.className].some((val) =>
-          val.toLowerCase().includes(filter.toLowerCase()),
+        [b.date, b.startTime, b.endTime, b.groupName, b.className, b.bookedBy].some((val) =>
+          val?.toLowerCase().includes(filter.toLowerCase()),
         ),
       );
     }
 
-    // Filter by tab
-    if (activeTab === "today") {
-      const today = new Date().toISOString().split("T")[0];
-      filtered = filtered.filter((b) => b.date === today);
-    } else if (activeTab === "upcoming") {
-      const today = new Date().toISOString().split("T")[0];
-      filtered = filtered.filter((b) => b.date > today);
-    } else if (activeTab === "past") {
-      const today = new Date().toISOString().split("T")[0];
-      filtered = filtered.filter((b) => b.date < today);
+    // Filter by specific date
+    if (dateFilter) {
+      const selectedDate = format(dateFilter, "yyyy-MM-dd");
+      filtered = filtered.filter((b) => b.date === selectedDate);
+    }
+
+    // Filter by room
+    if (roomFilter) {
+      filtered = filtered.filter((b) => b.className === roomFilter);
+    }
+
+    // Filter by tab (only if no specific date filter is applied)
+    if (!dateFilter) {
+      if (activeTab === "today") {
+        const today = new Date().toISOString().split("T")[0];
+        filtered = filtered.filter((b) => b.date === today);
+      } else if (activeTab === "upcoming") {
+        const today = new Date().toISOString().split("T")[0];
+        filtered = filtered.filter((b) => b.date > today);
+      } else if (activeTab === "past") {
+        const today = new Date().toISOString().split("T")[0];
+        filtered = filtered.filter((b) => b.date < today);
+      }
     }
 
     // Sort by date and time
