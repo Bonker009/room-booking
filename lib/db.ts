@@ -1,11 +1,8 @@
+// Example database functions - you'll need to update these based on your actual database implementation
+import { v4 as uuidv4 } from "uuid";
 import { promises as fs } from "fs";
 import path from "path";
-import { v4 as uuidv4 } from "uuid";
-
-// Define the data path relative to the project root
 const DATA_PATH = path.join(process.cwd(), "data", "bookings.json");
-
-// Define the Booking type
 export interface Booking {
   id: string;
   date: string;
@@ -14,6 +11,7 @@ export interface Booking {
   groupName: string;
   className: string;
   bookedBy?: string;
+  purpose: string; // Add this required field
   createdAt?: string;
   updatedAt?: string;
   // New optional fields
@@ -23,29 +21,28 @@ export interface Booking {
   status?: "confirmed" | "pending" | "cancelled";
 }
 
-// Define recurring booking pattern
-export interface RecurringPattern {
-  frequency: "daily" | "weekly" | "monthly";
-  interval: number; // Every X days/weeks/months
-  endDate: string; // When the recurring pattern ends
-}
-
-// Define query parameters for filtering bookings
 export interface BookingQuery {
   startDate?: string;
   endDate?: string;
   className?: string;
   groupName?: string;
   status?: string;
-  page?: number;
-  limit?: number;
   sortBy?: "date" | "createdAt" | "className";
   sortOrder?: "asc" | "desc";
+  page?: number;
+  limit?: number;
 }
 
-/**
- * Read bookings data from the JSON file
- */
+export interface RecurringPattern {
+  frequency: "daily" | "weekly" | "monthly";
+  interval: number;
+  endDate: string;
+  daysOfWeek?: number[];
+}
+
+// Mock implementation - replace with your actual database calls
+let bookingsData: Booking[] = [];
+
 async function readData(): Promise<Booking[]> {
   try {
     const str = await fs.readFile(DATA_PATH, "utf8");
@@ -56,84 +53,24 @@ async function readData(): Promise<Booking[]> {
   }
 }
 
-/**
- * Write bookings data to the JSON file
- */
 async function writeData(data: Booking[]): Promise<void> {
-  // Ensure the directory exists
   await fs.mkdir(path.dirname(DATA_PATH), { recursive: true });
-  // Write the data with pretty formatting
-  await fs.writeFile(DATA_PATH, JSON.stringify(data, null, 2));
+  await fs.writeFile(DATA_PATH, JSON.stringify(data, null, 2), "utf8");
+  bookingsData = data;
 }
 
-/**
- * Get all bookings
- */
 export async function getAllBookings(): Promise<Booking[]> {
   return await readData();
 }
 
-/**
- * Get bookings with filtering, pagination and sorting
- */
-export async function getBookings(
-  query: BookingQuery = {},
-): Promise<{ bookings: Booking[]; total: number }> {
-  let bookings = await readData();
-
-  // Apply filters
-  if (query.startDate) {
-    bookings = bookings.filter((b) => b.date >= query.startDate!);
-  }
-
-  if (query.endDate) {
-    bookings = bookings.filter((b) => b.date <= query.endDate!);
-  }
-
-  if (query.className) {
-    bookings = bookings.filter((b) => b.className === query.className);
-  }
-
-  if (query.groupName) {
-    bookings = bookings.filter((b) =>
-      b.groupName.toLowerCase().includes(query.groupName!.toLowerCase()),
-    );
-  }
-
-  if (query.status) {
-    bookings = bookings.filter((b) => b.status === query.status);
-  }
-
-  // Get total before pagination
-  const total = bookings.length;
-
-  // Apply sorting
-  const sortBy = query.sortBy || "date";
-  const sortOrder = query.sortOrder || "asc";
-
-  bookings.sort((a, b) => {
-    const aValue = (a[sortBy as keyof Booking] as string) || "";
-    const bValue = (b[sortBy as keyof Booking] as string) || "";
-
-    return sortOrder === "asc"
-      ? aValue.localeCompare(bValue)
-      : bValue.localeCompare(aValue);
-  });
-
-  // Apply pagination
-  if (query.page !== undefined && query.limit !== undefined) {
-    const start = (query.page - 1) * query.limit;
-    bookings = bookings.slice(start, start + query.limit);
-  }
-
-  return { bookings, total };
+export async function getBookingById(id: string): Promise<Booking | null> {
+  // Your database implementation here
+  const bookings = await readData();
+  return bookings.find((b) => b.id === id) || null;
 }
 
-/**
- * Add a new booking
- */
 export async function addBooking(
-  booking: Omit<Booking, "id" | "createdAt">,
+  booking: Omit<Booking, "id" | "createdAt">
 ): Promise<Booking> {
   const bookings = await readData();
 
@@ -148,313 +85,157 @@ export async function addBooking(
   // Add to the beginning of the array (newest first)
   bookings.unshift(newBooking);
   await writeData(bookings);
-
   return newBooking;
 }
 
-/**
- * Update an existing booking
- */
 export async function updateBooking(
   id: string,
-  bookingData: Partial<Booking>,
-): Promise<Booking | null> {
+  booking: Partial<Booking>
+): Promise<Booking> {
+  // Your database implementation here
+  // Make sure to include the purpose field when updating
   const bookings = await readData();
-
-  // Find the booking index
   const index = bookings.findIndex((b) => b.id === id);
-  if (index === -1) return null;
-
-  // Update the booking
-  const updatedBooking: Booking = {
-    ...bookings[index],
-    ...bookingData,
-    updatedAt: new Date().toISOString(),
-  };
-
-  bookings[index] = updatedBooking;
-  await writeData(bookings);
-
-  return updatedBooking;
-}
-
-/**
- * Remove a booking by ID
- */
-export async function removeBooking(id: string): Promise<boolean> {
-  let bookings = await readData();
-  const initialLength = bookings.length;
-
-  bookings = bookings.filter((b) => b.id !== id);
-
-  // Only write if something was actually removed
-  if (bookings.length !== initialLength) {
-    await writeData(bookings);
-    return true;
-  }
-
-  return false;
-}
-
-/**
- * Get a booking by ID
- */
-export async function getBookingById(id: string): Promise<Booking | null> {
-  const bookings = await readData();
-  return bookings.find((b) => b.id === id) || null;
-}
-
-/**
- * Check if a booking conflicts with existing bookings
- */
-export async function checkBookingConflicts(
-  booking: Pick<Booking, "date" | "startTime" | "endTime" | "className">,
-  excludeId?: string,
-): Promise<boolean> {
-  const bookings = await readData();
-
-  // Filter out the booking we're checking against (for updates)
-  const otherBookings = excludeId
-    ? bookings.filter((b) => b.id !== excludeId)
-    : bookings;
-
-  // Check for conflicts
-  for (const existingBooking of otherBookings) {
-    // Only check bookings for the same room and date
-    if (
-      existingBooking.className === booking.className &&
-      existingBooking.date === booking.date
-    ) {
-      // Check for time overlap
-      if (
-        (booking.startTime >= existingBooking.startTime &&
-          booking.startTime < existingBooking.endTime) ||
-        (booking.endTime > existingBooking.startTime &&
-          booking.endTime <= existingBooking.endTime) ||
-        (booking.startTime <= existingBooking.startTime &&
-          booking.endTime >= existingBooking.endTime)
-      ) {
-        return true; // Conflict found
-      }
-    }
-  }
-
-  return false; // No conflicts
-}
-
-/**
- * Create recurring bookings
- */
-export async function createRecurringBookings(
-  baseBooking: Omit<Booking, "id" | "createdAt">,
-  pattern: RecurringPattern,
-): Promise<Booking[]> {
-  if (!pattern || !pattern.frequency || !pattern.interval || !pattern.endDate) {
-    throw new Error("Invalid recurring pattern");
-  }
-
-  const createdBookings: Booking[] = [];
-  const startDate = new Date(baseBooking.date);
-  const endDate = new Date(pattern.endDate);
-
-  let currentDate = new Date(startDate);
-
-  while (currentDate <= endDate) {
-    // Create a booking for the current date
-    const booking = {
-      ...baseBooking,
-      date: currentDate.toISOString().split("T")[0], // Format as YYYY-MM-DD
-      recurring: pattern,
+  if (index !== -1) {
+    bookings[index] = {
+      ...bookings[index],
+      ...booking,
+      updatedAt: new Date().toISOString(),
     };
-
-    // Check for conflicts
-    const hasConflict = await checkBookingConflicts(booking);
-
-    if (!hasConflict) {
-      const newBooking = await addBooking(booking);
-      createdBookings.push(newBooking);
-    }
-
-    // Move to the next date based on the frequency
-    if (pattern.frequency === "daily") {
-      currentDate.setDate(currentDate.getDate() + pattern.interval);
-    } else if (pattern.frequency === "weekly") {
-      currentDate.setDate(currentDate.getDate() + 7 * pattern.interval);
-    } else if (pattern.frequency === "monthly") {
-      currentDate.setMonth(currentDate.getMonth() + pattern.interval);
-    }
+    await writeData(bookings);
   }
-
-  return createdBookings;
+  return (
+    bookings[index] ||
+    ({ id, ...booking, updatedAt: new Date().toISOString() } as Booking)
+  );
 }
 
-/**
- * Get room availability for a date range
- */
-export async function getRoomAvailability(
-  roomName: string,
-  startDate: string,
-  endDate: string,
-): Promise<
-  { date: string; availableHours: { start: string; end: string }[] }[]
-> {
+export async function removeBooking(id: string): Promise<boolean> {
+  // Your database implementation here
   const bookings = await readData();
+  const index = bookings.findIndex((b) => b.id === id);
+  console.log("Removing booking with ID:", id, "Index found:", index);
+  if (index !== -1) {
+    bookings.splice(index, 1);
+    await writeData(bookings);
+  }
+  return index !== -1;
+}
 
-  // Filter bookings for the specified room and date range
-  const roomBookings = bookings.filter(
-    (b) => b.className === roomName && b.date >= startDate && b.date <= endDate,
+export async function checkBookingConflicts(
+  booking: {
+    date: string;
+    startTime: string;
+    endTime: string;
+    className: string;
+  },
+  excludeId?: string
+): Promise<boolean> {
+  // Your database implementation here
+  const bookings = await readData();
+  return bookings.some(
+    (b) =>
+      b.id !== excludeId &&
+      b.date === booking.date &&
+      b.className === booking.className &&
+      booking.startTime < b.endTime &&
+      booking.endTime > b.startTime
   );
+}
 
-  // Generate dates in the range
-  const result = [];
-  const start = new Date(startDate);
-  const end = new Date(endDate);
+export async function getBookings(
+  query: BookingQuery & { bookedBy?: string }
+): Promise<{ bookings: Booking[]; total: number }> {
+  let bookings = await readData();
 
-  for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-    const dateStr = d.toISOString().split("T")[0];
+  if (query.startDate != null) {
+    bookings = bookings.filter((b) => b.date >= (query.startDate ?? ""));
+  }
 
-    // Get bookings for this date
-    const dayBookings = roomBookings.filter((b) => b.date === dateStr);
+  if (query.endDate) {
+    bookings = bookings.filter((b) => b.date <= (query.endDate ?? ""));
+  }
 
-    // Sort by start time
-    dayBookings.sort((a, b) => a.startTime.localeCompare(b.startTime));
+  if (query.className) {
+    bookings = bookings.filter((b) =>
+      b.className.toLowerCase().includes(query.className!.toLowerCase())
+    );
+  }
 
-    // Find available time slots (assuming 8:00 to 20:00 operating hours)
-    const availableHours = [];
-    let lastEndTime = "08:00";
-    const closingTime = "20:00";
+  if (query.groupName) {
+    bookings = bookings.filter(
+      (b) =>
+        b.groupName.toLowerCase().includes(query.groupName!.toLowerCase()) ||
+        (b.purpose &&
+          b.purpose.toLowerCase().includes(query.groupName!.toLowerCase()))
+    );
+  }
+ 
+  if (query.bookedBy) {
+    bookings = bookings.filter(
+      (b) =>
+        b.bookedBy &&
+        b.bookedBy.toLowerCase().includes(query.bookedBy!.toLowerCase())
+    );
+  }
 
-    for (const booking of dayBookings) {
-      if (booking.startTime > lastEndTime) {
-        availableHours.push({
-          start: lastEndTime,
-          end: booking.startTime,
-        });
-      }
-      lastEndTime = booking.endTime;
-    }
+  const total = bookings.length;
 
-    // Add final slot if needed
-    if (lastEndTime < closingTime) {
-      availableHours.push({
-        start: lastEndTime,
-        end: closingTime,
-      });
-    }
-
-    result.push({
-      date: dateStr,
-      availableHours,
+  if (query.sortBy) {
+    const order = query.sortOrder === "asc" ? 1 : -1;
+    bookings.sort((a, b) => {
+      const sortBy = query.sortBy as keyof Booking;
+      if ((a[sortBy] ?? "") < (b[sortBy] ?? "")) return -1 * order;
+      if ((a[sortBy] ?? "") > (b[sortBy] ?? "")) return 1 * order;
+      return 0;
     });
   }
 
-  return result;
-}
-
-/**
- * Get booking statistics
- */
-export async function getBookingStatistics(): Promise<{
-  totalBookings: number;
-  bookingsByRoom: Record<string, number>;
-  bookingsByDay: Record<string, number>;
-  averageDuration: number;
-}> {
-  const bookings = await readData();
-
-  // Count total bookings
-  const totalBookings = bookings.length;
-
-  // Count bookings by room
-  const bookingsByRoom: Record<string, number> = {};
-
-  // Count bookings by day of week
-  const bookingsByDay: Record<string, number> = {
-    Sunday: 0,
-    Monday: 0,
-    Tuesday: 0,
-    Wednesday: 0,
-    Thursday: 0,
-    Friday: 0,
-    Saturday: 0,
-  };
-
-  // Calculate average duration
-  let totalMinutes = 0;
-
-  for (const booking of bookings) {
-    // Count by room
-    bookingsByRoom[booking.className] =
-      (bookingsByRoom[booking.className] || 0) + 1;
-
-    // Count by day of week
-    const date = new Date(booking.date);
-    const dayOfWeek = [
-      "Sunday",
-      "Monday",
-      "Tuesday",
-      "Wednesday",
-      "Thursday",
-      "Friday",
-      "Saturday",
-    ][date.getDay()];
-    bookingsByDay[dayOfWeek]++;
-
-    // Calculate duration
-    const [startHour, startMinute] = booking.startTime.split(":").map(Number);
-    const [endHour, endMinute] = booking.endTime.split(":").map(Number);
-
-    const startMinutes = startHour * 60 + startMinute;
-    const endMinutes = endHour * 60 + endMinute;
-
-    totalMinutes += endMinutes - startMinutes;
+  if (query.page !== undefined && query.limit !== undefined) {
+    const start = (query.page - 1) * query.limit;
+    bookings = bookings.slice(start, start + query.limit);
   }
 
-  const averageDuration = totalBookings > 0 ? totalMinutes / totalBookings : 0;
-
-  return {
-    totalBookings,
-    bookingsByRoom,
-    bookingsByDay,
-    averageDuration,
-  };
+  return { bookings, total };
 }
 
-/**
- * Backup bookings data
- */
-export async function backupBookings(): Promise<string> {
+export async function createRecurringBookings(
+  booking: Omit<Booking, "id" | "createdAt">,
+  pattern: RecurringPattern
+): Promise<Booking[]> {
+  // Your database implementation here
   const bookings = await readData();
-  const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-  const backupPath = path.join(
-    process.cwd(),
-    "data",
-    `bookings-backup-${timestamp}.json`,
-  );
+  const recurringBookings: Booking[] = [];
+  const startDate = new Date(booking.date);
+  const endDate = new Date(pattern.endDate);
 
-  await fs.mkdir(path.dirname(backupPath), { recursive: true });
-  await fs.writeFile(backupPath, JSON.stringify(bookings, null, 2));
+  while (startDate <= endDate) {
+    const newBooking: Booking = {
+      id: uuidv4(),
+      ...booking,
+      date: startDate.toISOString().split("T")[0],
+      createdAt: new Date().toISOString(),
+      status: booking.status || "confirmed",
+      recurring: pattern,
+    };
+    recurringBookings.push(newBooking);
+    bookings.unshift(newBooking); // Add to the beginning of the array (newest first)
 
-  return backupPath;
-}
-
-/**
- * Restore bookings from backup
- */
-export async function restoreBookings(backupPath: string): Promise<boolean> {
-  try {
-    const backupData = await fs.readFile(backupPath, "utf8");
-    const bookings = JSON.parse(backupData);
-
-    // Validate backup data
-    if (!Array.isArray(bookings)) {
-      throw new Error("Invalid backup format");
+    switch (pattern.frequency) {
+      case "daily":
+        startDate.setDate(startDate.getDate() + pattern.interval);
+        break;
+      case "weekly":
+        startDate.setDate(startDate.getDate() + pattern.interval * 7);
+        break;
+      case "monthly":
+        startDate.setMonth(startDate.getMonth() + pattern.interval);
+        break;
+      default:
+        throw new Error("Invalid frequency");
     }
-
-    await writeData(bookings);
-    return true;
-  } catch (error) {
-    console.error("Restore failed:", error);
-    return false;
   }
+
+  await writeData(bookings);
+  return recurringBookings;
 }

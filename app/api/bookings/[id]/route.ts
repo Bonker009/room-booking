@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 import { revalidateTag } from "next/cache";
 import {
   getBookingById,
@@ -9,32 +9,30 @@ import {
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await params;
     const booking = await getBookingById(id);
-
     if (!booking) {
       return NextResponse.json(
         { message: "Booking not found" },
-        { status: 404 },
+        { status: 404 }
       );
     }
-
     return NextResponse.json(booking);
   } catch (error) {
     console.error("Error fetching booking:", error);
     return NextResponse.json(
       { message: "Failed to fetch booking" },
-      { status: 500 },
+      { status: 500 }
     );
   }
 }
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await params;
@@ -47,12 +45,14 @@ export async function PUT(
       "groupName",
       "className",
       "bookedBy",
+      "purpose",
     ];
+
     for (const field of requiredFields) {
       if (!body[field]) {
         return NextResponse.json(
           { message: `${field} is required` },
-          { status: 400 },
+          { status: 400 }
         );
       }
     }
@@ -61,7 +61,7 @@ export async function PUT(
     if (!existingBooking) {
       return NextResponse.json(
         { message: "Booking not found" },
-        { status: 404 },
+        { status: 404 }
       );
     }
 
@@ -72,13 +72,13 @@ export async function PUT(
         endTime: body.endTime,
         className: body.className,
       },
-      id,
+      id
     );
 
     if (hasConflict) {
       return NextResponse.json(
         { message: "This room is already booked during this time" },
-        { status: 409 },
+        { status: 409 }
       );
     }
 
@@ -89,6 +89,10 @@ export async function PUT(
       groupName: body.groupName,
       className: body.className,
       bookedBy: body.bookedBy,
+      purpose: body.purpose,
+      description: body.description,
+      attendees: body.attendees,
+      status: body.status,
     });
 
     // Revalidate bookings cache
@@ -99,27 +103,27 @@ export async function PUT(
     console.error("Error updating booking:", error);
     return NextResponse.json(
       { message: "Failed to update booking" },
-      { status: 500 },
+      { status: 500 }
     );
   }
 }
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await params;
+    console.log("Deleting booking with ID:", id);
     const success = await removeBooking(id);
 
     if (!success) {
       return NextResponse.json(
         { message: "Booking not found" },
-        { status: 404 },
+        { status: 404 }
       );
     }
 
-    // Revalidate bookings cache
     revalidateTag("bookings");
 
     return NextResponse.json({ success: true });
@@ -127,7 +131,7 @@ export async function DELETE(
     console.error("Error deleting booking:", error);
     return NextResponse.json(
       { message: "Failed to delete booking" },
-      { status: 500 },
+      { status: 500 }
     );
   }
 }

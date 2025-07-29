@@ -1,5 +1,4 @@
 "use client";
-
 import { useState, useEffect } from "react";
 import {
   CalendarIcon,
@@ -14,9 +13,8 @@ import {
   Edit,
   Calendar,
   LayoutDashboard,
-  CalendarDays,
-  CreditCard,
   PersonStandingIcon,
+  Eye,
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { Button } from "@/components/ui/button";
@@ -44,7 +42,6 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
-import { Label } from "@/components/ui/label";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -58,6 +55,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import Link from "next/link";
 import { BookingDialog } from "@/components/booking-dialog";
+import { BookingDetailsDialog } from "@/components/booking-details-dialog";
 import { cn } from "@/lib/utils";
 
 // Type definitions
@@ -69,6 +67,7 @@ interface Booking {
   groupName: string;
   className: string;
   bookedBy: string;
+  purpose: string;
 }
 
 interface FormData {
@@ -78,6 +77,7 @@ interface FormData {
   groupName: string;
   className: string;
   bookedBy: string;
+  purpose: string;
 }
 
 export default function Home() {
@@ -89,7 +89,9 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(true);
   const [openDialog, setOpenDialog] = useState(false);
   const [openEditDialog, setOpenEditDialog] = useState(false);
-  const [activeTab, setActiveTab] = useState("today"); // Default to today
+  const [openDetailsDialog, setOpenDetailsDialog] = useState(false);
+  const [viewingBooking, setViewingBooking] = useState<Booking | null>(null);
+  const [activeTab, setActiveTab] = useState("today");
   const [editingBooking, setEditingBooking] = useState<Booking | null>(null);
 
   // Fetch bookings on component mount
@@ -125,38 +127,56 @@ export default function Home() {
 
   const filterBookings = () => {
     let filtered = bookings;
-
     // Filter by search term
     if (filter) {
       filtered = filtered.filter((b) =>
-        [b.date, b.startTime, b.endTime, b.groupName, b.className, b.bookedBy].some((val) =>
-          val?.toLowerCase().includes(filter.toLowerCase()),
-        ),
+        [
+          b.date,
+          b.startTime,
+          b.endTime,
+          b.groupName,
+          b.className,
+          b.bookedBy,
+          b.purpose,
+        ].some((val) => val?.toLowerCase().includes(filter.toLowerCase()))
       );
     }
-
     // Filter by specific date
     if (dateFilter) {
       const selectedDate = format(dateFilter, "yyyy-MM-dd");
       filtered = filtered.filter((b) => b.date === selectedDate);
     }
-
     // Filter by room
     if (roomFilter) {
       filtered = filtered.filter((b) => b.className === roomFilter);
     }
-
     // Filter by tab (only if no specific date filter is applied)
     if (!dateFilter) {
+      const now = new Date();
+      const todayStr = now.toISOString().split("T")[0];
+
       if (activeTab === "today") {
-        const today = new Date().toISOString().split("T")[0];
-        filtered = filtered.filter((b) => b.date === today);
+        filtered = filtered.filter((b) => b.date === todayStr);
       } else if (activeTab === "upcoming") {
-        const today = new Date().toISOString().split("T")[0];
-        filtered = filtered.filter((b) => b.date > today);
+        filtered = filtered.filter((b) => {
+          if (b.date > todayStr) return true;
+          if (b.date < todayStr) return false;
+          // If booking is today, check if its end time is in the future
+          const [endHour, endMin] = b.endTime.split(":").map(Number);
+          const bookingEnd = new Date(b.date);
+          bookingEnd.setHours(endHour, endMin, 0, 0);
+          return bookingEnd > now;
+        });
       } else if (activeTab === "past") {
-        const today = new Date().toISOString().split("T")[0];
-        filtered = filtered.filter((b) => b.date < today);
+        filtered = filtered.filter((b) => {
+          if (b.date < todayStr) return true;
+          if (b.date > todayStr) return false;
+          // If booking is today, check if its end time is in the past
+          const [endHour, endMin] = b.endTime.split(":").map(Number);
+          const bookingEnd = new Date(b.date);
+          bookingEnd.setHours(endHour, endMin, 0, 0);
+          return bookingEnd <= now;
+        });
       }
     }
 
@@ -165,11 +185,9 @@ export default function Home() {
       // First sort by date
       const dateComparison = a.date.localeCompare(b.date);
       if (dateComparison !== 0) return dateComparison;
-
       // If same date, sort by start time
       return a.startTime.localeCompare(b.startTime);
     });
-
     setFilteredBookings(filtered);
   };
 
@@ -178,7 +196,6 @@ export default function Home() {
       const dateString = formData.date
         ? format(formData.date, "yyyy-MM-dd")
         : "";
-
       const res = await fetch("/api/bookings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -189,16 +206,14 @@ export default function Home() {
           groupName: formData.groupName,
           className: formData.className,
           bookedBy: formData.bookedBy,
+          purpose: formData.purpose,
         }),
       });
-
       if (res.ok) {
         const newBooking = await res.json();
         setBookings((prev) => [newBooking, ...prev]);
-
         // Refresh bookings from server
         await fetchBookings();
-
         toast.success("Booking created", {
           description: `Room booked for ${format(new Date(dateString), "PPP")}`,
         });
@@ -219,12 +234,10 @@ export default function Home() {
 
   const handleEditSubmit = async (formData: FormData) => {
     if (!editingBooking) return;
-
     try {
       const dateString = formData.date
         ? format(formData.date, "yyyy-MM-dd")
         : "";
-
       const res = await fetch(`/api/bookings/${editingBooking.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -235,23 +248,24 @@ export default function Home() {
           groupName: formData.groupName,
           className: formData.className,
           bookedBy: formData.bookedBy,
+          purpose: formData.purpose,
         }),
       });
-
       if (res.ok) {
         const updatedBooking = await res.json();
         setBookings((prev) =>
           prev.map((b) =>
-            b.id === updatedBooking.id ? { ...b, ...updatedBooking } : b,
-          ),
+            b.id === updatedBooking.id ? { ...b, ...updatedBooking } : b
+          )
         );
         setEditingBooking(null);
-
         // Refresh bookings from server
         await fetchBookings();
-
         toast.success("Booking updated", {
-          description: `Room booking for ${format(new Date(dateString), "PPP")} has been updated`,
+          description: `Room booking for ${format(
+            new Date(dateString),
+            "PPP"
+          )} has been updated`,
         });
       } else {
         const errorData = await res.json();
@@ -273,10 +287,14 @@ export default function Home() {
     setOpenEditDialog(true);
   };
 
+  const handleViewDetails = (booking: Booking) => {
+    setViewingBooking(booking);
+    setOpenDetailsDialog(true);
+  };
+
   const handleDelete = async (id: string) => {
     try {
       const result = await fetch(`/api/bookings/${id}`, { method: "DELETE" });
-
       if (result.ok) {
         setBookings((prev) => prev.filter((b) => b.id !== id));
         toast.success("Booking deleted", {
@@ -330,16 +348,14 @@ export default function Home() {
       const [startHours, startMinutes] = booking.startTime.split(":");
       startTime.setHours(
         Number.parseInt(startHours, 10),
-        Number.parseInt(startMinutes, 10),
+        Number.parseInt(startMinutes, 10)
       );
-
       const endTime = new Date(bookingDate);
       const [endHours, endMinutes] = booking.endTime.split(":");
       endTime.setHours(
         Number.parseInt(endHours, 10),
-        Number.parseInt(endMinutes, 10),
+        Number.parseInt(endMinutes, 10)
       );
-
       if (now < startTime) {
         return { label: "Upcoming", color: "bg-blue-100 text-blue-800" };
       } else if (now >= startTime && now <= endTime) {
@@ -364,7 +380,6 @@ export default function Home() {
       "Director Room": "bg-slate-100 text-slate-800",
       "Deputy Director Room": "bg-orange-100 text-orange-800",
     };
-
     return classColors[className] || "bg-gray-100 text-gray-800";
   };
 
@@ -399,7 +414,6 @@ export default function Home() {
                 <PersonStandingIcon className="h-4 w-4 mr-1" />
                 <span>Founder</span>
               </Link>
-           
             </nav>
           </div>
         </div>
@@ -448,7 +462,6 @@ export default function Home() {
                   Manage all your room reservations in one place
                 </CardDescription>
               </div>
-
               <div className="flex flex-col lg:flex-row gap-3">
                 {/* Search Input */}
                 <div className="relative">
@@ -471,7 +484,6 @@ export default function Home() {
                     </Button>
                   )}
                 </div>
-
                 {/* Date Filter */}
                 <Popover>
                   <PopoverTrigger asChild>
@@ -483,7 +495,9 @@ export default function Home() {
                       )}
                     >
                       <CalendarIcon className="mr-2 h-4 w-4" />
-                      {dateFilter ? format(dateFilter, "PPP") : "Filter by date"}
+                      {dateFilter
+                        ? format(dateFilter, "PPP")
+                        : "Filter by date"}
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0" align="start">
@@ -495,7 +509,6 @@ export default function Home() {
                     />
                   </PopoverContent>
                 </Popover>
-
                 {/* Room Filter */}
                 <Select value={roomFilter} onValueChange={setRoomFilter}>
                   <SelectTrigger className="w-full sm:w-[180px] border-sky-200 focus:ring-sky-500">
@@ -514,12 +527,11 @@ export default function Home() {
                     <SelectItem value="Koh Kong">Koh Kong</SelectItem>
                   </SelectContent>
                 </Select>
-
                 {/* Clear Filters Button */}
                 {(filter || dateFilter || roomFilter) && (
                   <Button
                     variant="outline"
-                    className="h-10 px-3 border-sky-200 hover:bg-sky-50 text-sm"
+                    className="h-10 px-3 border-sky-200 hover:bg-sky-50 text-sm bg-transparent"
                     onClick={clearAllFilters}
                     title="Clear all filters"
                   >
@@ -530,7 +542,6 @@ export default function Home() {
               </div>
             </div>
           </CardHeader>
-
           <CardContent>
             <div className="mb-6">
               <Tabs
@@ -571,12 +582,12 @@ export default function Home() {
                 </TabsList>
               </Tabs>
             </div>
-
             {/* Filter Summary */}
             {!isLoading && (
               <div className="mb-4 flex items-center justify-between">
                 <p className="text-sm text-gray-600">
-                  Showing {filteredBookings.length} of {bookings.length} booking{bookings.length !== 1 ? 's' : ''}
+                  Showing {filteredBookings.length} of {bookings.length} booking
+                  {bookings.length !== 1 ? "s" : ""}
                   {(filter || dateFilter || roomFilter) && (
                     <span className="ml-1 text-sky-600 font-medium">
                       (filtered)
@@ -586,17 +597,26 @@ export default function Home() {
                 {(filter || dateFilter || roomFilter) && (
                   <div className="flex items-center gap-2 text-xs">
                     {filter && (
-                      <Badge variant="secondary" className="bg-sky-100 text-sky-700">
+                      <Badge
+                        variant="secondary"
+                        className="bg-sky-100 text-sky-700"
+                      >
                         Search: "{filter}"
                       </Badge>
                     )}
                     {dateFilter && (
-                      <Badge variant="secondary" className="bg-sky-100 text-sky-700">
+                      <Badge
+                        variant="secondary"
+                        className="bg-sky-100 text-sky-700"
+                      >
                         Date: {format(dateFilter, "MMM d, yyyy")}
                       </Badge>
                     )}
                     {roomFilter && (
-                      <Badge variant="secondary" className="bg-sky-100 text-sky-700">
+                      <Badge
+                        variant="secondary"
+                        className="bg-sky-100 text-sky-700"
+                      >
                         Room: {roomFilter}
                       </Badge>
                     )}
@@ -604,7 +624,6 @@ export default function Home() {
                 )}
               </div>
             )}
-
             {isLoading ? (
               <div className="flex justify-center items-center py-12">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-sky-600"></div>
@@ -632,9 +651,6 @@ export default function Home() {
                             Status
                           </th>
                           <th className="px-6 py-3 text-left text-xs font-medium text-sky-700 uppercase tracking-wider">
-                            Book By
-                          </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-sky-700 uppercase tracking-wider">
                             Actions
                           </th>
                         </tr>
@@ -650,13 +666,15 @@ export default function Home() {
                               <td className="px-6 py-4 whitespace-nowrap">
                                 <div className="flex items-center">
                                   <CalendarIcon className="h-4 w-4 mr-2 text-sky-500" />
-                                  <span>{formatDate(booking.date)}</span>
+                                  <span className="text-sm font-medium">
+                                    {formatDate(booking.date)}
+                                  </span>
                                 </div>
                               </td>
                               <td className="px-6 py-4 whitespace-nowrap">
                                 <div className="flex items-center">
                                   <Clock className="h-4 w-4 mr-2 text-sky-500" />
-                                  <span>
+                                  <span className="text-sm">
                                     {formatTime(booking.startTime)} -{" "}
                                     {formatTime(booking.endTime)}
                                   </span>
@@ -665,7 +683,7 @@ export default function Home() {
                               <td className="px-6 py-4 whitespace-nowrap">
                                 <div className="flex items-center">
                                   <Users className="h-4 w-4 mr-2 text-sky-500" />
-                                  <span className="font-medium">
+                                  <span className="text-sm font-medium">
                                     {booking.groupName}
                                   </span>
                                 </div>
@@ -674,7 +692,7 @@ export default function Home() {
                                 <Badge
                                   variant="outline"
                                   className={getClassBadgeColor(
-                                    booking.className,
+                                    booking.className
                                   )}
                                 >
                                   {booking.className}
@@ -689,20 +707,22 @@ export default function Home() {
                                 </Badge>
                               </td>
                               <td className="px-6 py-4 whitespace-nowrap">
-                                <div className="flex items-center">
-                                  <PersonStandingIcon className="h-4 w-4 mr-2 text-sky-500" />
-                                  <span className="font-medium">
-                                    {booking.bookedBy || "N/A"}
-                                  </span>
-                                </div>
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap">
                                 <div className="flex space-x-2">
                                   <Button
                                     variant="ghost"
                                     size="icon"
                                     className="text-sky-500 hover:text-sky-700 hover:bg-sky-50"
+                                    onClick={() => handleViewDetails(booking)}
+                                    title="View Details"
+                                  >
+                                    <Eye className="h-4 w-4" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="text-sky-500 hover:text-sky-700 hover:bg-sky-50"
                                     onClick={() => handleEdit(booking)}
+                                    title="Edit Booking"
                                   >
                                     <Edit className="h-4 w-4" />
                                   </Button>
@@ -712,6 +732,7 @@ export default function Home() {
                                         variant="ghost"
                                         size="icon"
                                         className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                                        title="Delete Booking"
                                       >
                                         <Trash2 className="h-4 w-4" />
                                       </Button>
@@ -756,14 +777,14 @@ export default function Home() {
                       No bookings found
                     </h3>
                     <p className="text-sky-600 mt-1">
-                      {(filter || dateFilter || roomFilter)
+                      {filter || dateFilter || roomFilter
                         ? "No bookings match your current filters. Try adjusting your search criteria."
                         : "Create your first booking to get started"}
                     </p>
-                    {(filter || dateFilter || roomFilter) ? (
+                    {filter || dateFilter || roomFilter ? (
                       <Button
                         variant="outline"
-                        className="mt-4 border-sky-200 text-sky-600 hover:bg-sky-100"
+                        className="mt-4 border-sky-200 text-sky-600 hover:bg-sky-100 bg-transparent"
                         onClick={clearAllFilters}
                       >
                         <X className="h-4 w-4 mr-2" />
@@ -801,6 +822,13 @@ export default function Home() {
         onSubmit={handleEditSubmit}
         existingBookings={bookings}
         editingBooking={editingBooking}
+      />
+
+      {/* View Details Dialog */}
+      <BookingDetailsDialog
+        open={openDetailsDialog}
+        onOpenChange={setOpenDetailsDialog}
+        booking={viewingBooking}
       />
     </div>
   );
