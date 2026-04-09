@@ -46,6 +46,7 @@ import {
 } from "@/lib/booking-display";
 import { cn } from "@/lib/utils";
 import Image from "next/image";
+import { UserMenu } from "@/components/user-menu";
 
 // Type definitions
 interface Booking {
@@ -56,6 +57,7 @@ interface Booking {
   groupName: string;
   className: string;
   bookedBy: string;
+  bookedByEmail?: string;
   purpose: string;
 }
 
@@ -65,7 +67,6 @@ interface FormData {
   endTime: string;
   groupName: string;
   className: string;
-  bookedBy: string;
   purpose: string;
 }
 
@@ -128,8 +129,13 @@ export default function Home() {
           b.groupName,
           b.className,
           b.bookedBy,
+          b.bookedByEmail,
           b.purpose,
-        ].some((val) => val?.toLowerCase().includes(filter.toLowerCase()))
+        ]
+          .filter(Boolean)
+          .some((val) =>
+            String(val).toLowerCase().includes(filter.toLowerCase()),
+          )
       );
     }
     const hasToolbarDateRange = Boolean(
@@ -215,7 +221,6 @@ export default function Home() {
           endTime: formData.endTime,
           groupName: formData.groupName,
           className: formData.className,
-          bookedBy: formData.bookedBy,
           purpose: formData.purpose,
         }),
       });
@@ -257,7 +262,6 @@ export default function Home() {
           endTime: formData.endTime,
           groupName: formData.groupName,
           className: formData.className,
-          bookedBy: formData.bookedBy,
           purpose: formData.purpose,
         }),
       });
@@ -485,7 +489,7 @@ export default function Home() {
                 </p>
               </div>
             </Link>
-            <nav className="flex items-center space-x-4">
+            <nav className="flex items-center gap-4">
               <Link
                 href="/"
                 className="flex items-center text-primary hover:text-primary/85"
@@ -493,6 +497,7 @@ export default function Home() {
                 <LayoutDashboard className="h-4 w-4 mr-1" />
                 <span>Dashboard</span>
               </Link>
+              <UserMenu />
             </nav>
           </div>
         </div>

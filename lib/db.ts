@@ -10,7 +10,10 @@ export interface Booking {
   endTime: string;
   groupName: string;
   className: string;
+  /** Display name from Keycloak / Better Auth (set by server). */
   bookedBy?: string;
+  /** Email from Keycloak / Better Auth (set by server). */
+  bookedByEmail?: string;
   purpose: string; // Add this required field
   createdAt?: string;
   updatedAt?: string;

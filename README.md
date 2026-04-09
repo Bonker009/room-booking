@@ -1,36 +1,110 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Room Booking System (KSHRD)
 
-## Getting Started
+Internal **room booking** dashboard: browse, create, edit, and delete reservations. The UI is a single Next.js app; booking data is stored in JSON; **sessions and users** use **Better Auth** with **SQLite** and **Keycloak** (OIDC) for login.
 
-First, run the development server:
+## Stack
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+- **Next.js 16** (App Router), **React 19**, **TypeScript**, **Tailwind CSS 4**
+- **Better Auth** + **better-sqlite3** (`data/auth.db`)
+- **Keycloak** at `keycloak.kshrd.app` via the Generic OAuth plugin (`providerId`: `keycloak`)
+- Bookings persisted in **`data/bookings.json`** (`lib/db.ts`)
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Prerequisites
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- Node.js 20+ (project uses npm; lockfile: `package-lock.json`)
+- A **Keycloak** realm and OIDC client (see [Authentication](#authentication))
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Quick start
 
-## Learn More
+1. Clone the repo and install dependencies:
 
-To learn more about Next.js, take a look at the following resources:
+   ```bash
+   npm ci
+   ```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+2. Copy environment variables and fill in secrets:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+   ```bash
+   cp .env.example .env.local
+   ```
 
-## Deploy on Vercel
+3. Apply Better Auth DB migrations (creates/updates `data/auth.db`):
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+   ```bash
+   npx @better-auth/cli@latest migrate --config lib/auth.ts --yes
+   ```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+4. Run the dev server:
+
+   ```bash
+   npm run dev
+   ```
+
+5. Open [http://localhost:3000](http://localhost:3000). Unauthenticated users are redirected to **`/sign-in`**.
+
+## Authentication
+
+Login is **Keycloak-only** (no email/password in this app). Flow:
+
+1. User hits a protected route → `middleware.ts` checks for a session cookie; if missing → redirect to `/sign-in`.
+2. User clicks **Continue with Keycloak** → Better Auth starts OAuth2 with `providerId: "keycloak"`.
+3. After Keycloak redirects back, Better Auth creates a session cookie.
+4. Booking **API routes** additionally verify the session server-side (`lib/require-session.ts`).
+
+### Environment variables (auth)
+
+| Variable | Purpose |
+|----------|---------|
+| `BETTER_AUTH_SECRET` | Encryption/signing; **≥ 32 characters** in production (`openssl rand -base64 32`). |
+| `BETTER_AUTH_URL` | Public base URL of **this** app, no trailing slash (e.g. `http://localhost:3000`). Must match the browser origin users use. |
+| `BETTER_AUTH_TRUSTED_ORIGINS` | Optional; comma-separated extra allowed origins for cookies/CSRF. |
+| `KEYCLOAK_CLIENT_ID` | Keycloak client ID. |
+| `KEYCLOAK_CLIENT_SECRET` | Keycloak client secret (confidential client). |
+| `KEYCLOAK_ISSUER` | Full realm issuer URL, e.g. `https://keycloak.kshrd.app/realms/<realm>`. |
+
+### Keycloak client settings
+
+In the Keycloak admin console, for the client used by this app:
+
+- **Valid redirect URIs:** `{BETTER_AUTH_URL}/api/auth/oauth2/callback/keycloak`  
+  Example: `http://localhost:3000/api/auth/oauth2/callback/keycloak`
+- **Web origins:** your app origin (e.g. `http://localhost:3000`).
+
+### Important files
+
+| Path | Role |
+|------|------|
+| `lib/auth.ts` | Better Auth server config (SQLite path, Keycloak plugin, `nextCookies()`). |
+| `lib/auth-client.ts` | Browser client + `genericOAuthClient()` plugin. |
+| `app/api/auth/[...all]/route.ts` | Auth HTTP handler (`toNextJsHandler`). |
+| `middleware.ts` | Redirect unauthenticated users to `/sign-in`. |
+| `app/sign-in/page.tsx` | Keycloak sign-in button. |
+
+## API (bookings)
+
+All booking endpoints require an authenticated session (cookie).
+
+- `GET /api/bookings` — list (optional query params for filters/pagination).
+- `POST /api/bookings` — create (validates fields; checks room/time conflicts).
+- `GET/PUT/DELETE /api/bookings/[id]` — read, update, delete.
+
+Implementation: `app/api/bookings/**/*.ts`, storage `lib/db.ts`.
+
+## Docker
+
+- `docker-compose.yml` maps **`./data`** → `/app/data` so **`bookings.json`** and **`auth.db`** persist.
+- Set the same auth-related env vars at runtime (especially `BETTER_AUTH_URL` to match how users reach the app, e.g. `http://127.0.0.1:9999` if exposed on port 9999).
+- The `Dockerfile` installs build tools for `better-sqlite3` and runs Better Auth migrate after `npm run build`.
+
+## Scripts
+
+| Command | Description |
+|---------|-------------|
+| `npm run dev` | Dev server (Turbopack). |
+| `npm run build` | Production build. |
+| `npm run start` | Start production server. |
+| `npm run lint` | ESLint. |
+
+## Agent / contributor note
+
+For a short architecture and “what to touch” guide for automation, see **`AGENTS.md`**.

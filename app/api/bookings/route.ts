@@ -9,8 +9,14 @@ import {
   type BookingQuery,
   type RecurringPattern,
 } from "@/lib/db"
+import {
+  requireApiSession,
+  bookingActorFromSessionUser,
+} from "@/lib/require-session"
 
 export async function GET(request: Request) {
+  const authResult = await requireApiSession()
+  if (!authResult.ok) return authResult.response
   try {
     const { searchParams } = new URL(request.url)
 
@@ -54,11 +60,16 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const authResult = await requireApiSession()
+  if (!authResult.ok) return authResult.response
+  const { bookedBy, bookedByEmail } = bookingActorFromSessionUser(
+    authResult.session.user,
+  )
   try {
     const body = await request.json()
 
-    // Validate required fields (including purpose)
-    const requiredFields = ["date", "startTime", "endTime", "groupName", "className", "bookedBy", "purpose"]
+    // Validate required fields (bookedBy / email come from session, not body)
+    const requiredFields = ["date", "startTime", "endTime", "groupName", "className", "purpose"]
 
     for (const field of requiredFields) {
       if (!body[field]) {
@@ -102,7 +113,8 @@ export async function POST(request: Request) {
       endTime: body.endTime,
       groupName: body.groupName,
       className: body.className,
-      bookedBy: body.bookedBy,
+      bookedBy,
+      bookedByEmail,
       purpose: body.purpose,
       description: body.description,
       attendees: body.attendees,

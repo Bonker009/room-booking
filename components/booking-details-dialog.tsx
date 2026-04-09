@@ -1,6 +1,6 @@
 "use client"
 import { format } from "date-fns"
-import { CalendarIcon, Building2, PersonStandingIcon, FileText, X } from "lucide-react"
+import { CalendarIcon, Building2, PersonStandingIcon, FileText, X, Mail } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
@@ -14,6 +14,7 @@ interface Booking {
   groupName: string
   className: string
   bookedBy: string
+  bookedByEmail?: string
   purpose: string
 }
 
@@ -162,10 +163,19 @@ export function BookingDetailsDialog({ open, onOpenChange, booking }: BookingDet
               Booking Information
             </h3>
             <div className="bg-muted rounded-lg p-4 space-y-3">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-2">
                 <span className="text-sm font-medium text-muted-foreground">Booked By:</span>
-                <span className="text-sm font-semibold text-foreground">{booking.bookedBy || "N/A"}</span>
+                <span className="text-sm font-semibold text-foreground text-right">{booking.bookedBy || "N/A"}</span>
               </div>
+              {booking.bookedByEmail ? (
+                <div className="flex items-start justify-between gap-2">
+                  <span className="text-sm font-medium text-muted-foreground flex items-center gap-1">
+                    <Mail className="h-3.5 w-3.5 shrink-0" />
+                    Email:
+                  </span>
+                  <span className="text-sm font-medium text-foreground break-all text-right">{booking.bookedByEmail}</span>
+                </div>
+              ) : null}
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium text-muted-foreground">Booking ID:</span>
                 <span className="text-xs font-mono text-muted-foreground bg-background px-2 py-1 rounded-md border border-border tabular-nums">{booking.id}</span>

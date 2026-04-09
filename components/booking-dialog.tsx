@@ -2,7 +2,7 @@
 import type React from "react"
 import { useState, useEffect } from "react"
 import { format } from "date-fns"
-import { CalendarIcon, Clock, Users, Building2, PersonStandingIcon, FileText } from "lucide-react"
+import { CalendarIcon, Clock, Users, Building2, PersonStandingIcon, FileText, Mail } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -20,6 +20,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
+import { authClient } from "@/lib/auth-client"
 
 interface BookingDialogProps {
   open: boolean
@@ -35,7 +36,6 @@ interface BookingFormData {
   endTime: string
   groupName: string
   className: string
-  bookedBy: string
   purpose: string
 }
 
@@ -47,6 +47,7 @@ interface Booking {
   groupName: string
   className: string
   bookedBy: string
+  bookedByEmail?: string
   purpose: string
 }
 
@@ -63,8 +64,13 @@ export function BookingDialog({
   const [endTime, setEndTime] = useState("")
   const [groupName, setGroupName] = useState("")
   const [room, setRoom] = useState("")
-  const [bookedBy, setBookedBy] = useState("")
   const [purpose, setPurpose] = useState("")
+  const { data: session, isPending: sessionPending } = authClient.useSession()
+  const actorName =
+    session?.user?.name?.trim() ||
+    session?.user?.email?.split("@")[0]?.trim() ||
+    ""
+  const actorEmail = session?.user?.email?.trim() ?? ""
   const [errors, setErrors] = useState<Record<string, string>>({})
 
   // Populate form when editing
@@ -75,7 +81,6 @@ export function BookingDialog({
       setEndTime(editingBooking.endTime)
       setGroupName(editingBooking.groupName)
       setRoom(editingBooking.className)
-      setBookedBy(editingBooking.bookedBy || "")
       setPurpose(editingBooking.purpose || "")
     } else {
       // Set default values for new booking
@@ -89,7 +94,6 @@ export function BookingDialog({
       setEndTime(`${(nextHour + 1).toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}`)
       setGroupName("")
       setRoom("")
-      setBookedBy("")
       setPurpose("")
     }
   }, [editingBooking, open])
@@ -101,7 +105,6 @@ export function BookingDialog({
     if (!endTime) newErrors.endTime = "Please select an end time"
     if (!groupName.trim()) newErrors.groupName = "Please enter a group name"
     if (!room) newErrors.room = "Please select a room"
-    if (!bookedBy.trim()) newErrors.bookedBy = "Please enter who is booking this room"
     if (!purpose.trim()) newErrors.purpose = "Please enter the purpose of booking"
 
     // Validate time format and logic
@@ -166,7 +169,6 @@ export function BookingDialog({
         endTime,
         groupName,
         className: room,
-        bookedBy,
         purpose,
       })
       // Reset form
@@ -176,7 +178,6 @@ export function BookingDialog({
         setEndTime("")
         setGroupName("")
         setRoom("")
-        setBookedBy("")
         setPurpose("")
       }
       onOpenChange(false)
@@ -366,20 +367,29 @@ export function BookingDialog({
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="bookedBy" className="text-sm font-medium">
-                  Booked By
-                </Label>
-                <div className="relative">
-                  <PersonStandingIcon className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    id="bookedBy"
-                    placeholder="Enter name of person booking"
-                    className={cn("pl-10", errors.bookedBy ? "border-destructive" : "border-input")}
-                    value={bookedBy}
-                    onChange={(e) => setBookedBy(e.target.value)}
-                  />
+                <Label className="text-sm font-medium">Booked by (your Keycloak account)</Label>
+                <div className="rounded-md border border-border bg-muted/40 px-3 py-2.5 text-sm">
+                  {sessionPending ? (
+                    <span className="text-muted-foreground">Loading account…</span>
+                  ) : (
+                    <>
+                      <div className="flex items-center gap-2 font-medium text-foreground">
+                        <PersonStandingIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
+                        {actorName || "—"}
+                      </div>
+                      {actorEmail ? (
+                        <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
+                          <Mail className="h-3.5 w-3.5 shrink-0" />
+                          <span className="truncate">{actorEmail}</span>
+                        </div>
+                      ) : (
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          No email on profile — stored name may use your username only.
+                        </p>
+                      )}
+                    </>
+                  )}
                 </div>
-                {errors.bookedBy && <p className="text-sm text-destructive">{errors.bookedBy}</p>}
               </div>
 
               {/* Purpose — full width */}
@@ -424,7 +434,11 @@ export function BookingDialog({
             </Button>
             <Button
               type="submit"
-              disabled={isSubmitting}
+              disabled={
+                isSubmitting ||
+                sessionPending ||
+                (!sessionPending && !session?.user)
+              }
               className="bg-gradient-to-r from-primary to-[#003d6b] hover:opacity-95 text-primary-foreground"
             >
               {isSubmitting ? (

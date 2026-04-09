@@ -1,5 +1,4 @@
 [
-   
   {
     "id": "290e312d-a6f1-415c-99b8-d2d54117d9a0",
     "date": "2025-07-29",
@@ -8,6 +7,7 @@
     "groupName": "Android",
     "className": "PVH",
     "bookedBy": "Penh Seyha",
+    "bookedByEmail": "penh.seyha@gmail.com",
     "purpose": "Presentation",
     "status": "confirmed",
     "createdAt": "2025-07-29T05:17:21.275Z"
@@ -20,6 +20,7 @@
     "groupName": "Cyber Security",
     "className": "Seminar",
     "bookedBy": "N/A",
+    "bookedByEmail": "n/a@gmail.com",
     "purpose": "Team Meeting for discussion and presentation",
     "status": "confirmed",
     "createdAt": "2025-07-29T05:15:57.356Z"
