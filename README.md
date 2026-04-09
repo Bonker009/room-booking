@@ -56,8 +56,9 @@ Login is **Keycloak-only** (no email/password in this app). Flow:
 | Variable | Purpose |
 |----------|---------|
 | `BETTER_AUTH_SECRET` | Encryption/signing; **≥ 32 characters** in production (`openssl rand -base64 32`). |
-| `BETTER_AUTH_URL` | Public base URL of **this** app, no trailing slash (e.g. `http://localhost:3000`). Must match the browser origin users use. |
-| `BETTER_AUTH_TRUSTED_ORIGINS` | Optional; comma-separated extra allowed origins for cookies/CSRF. |
+| `BETTER_AUTH_URL` | Public base URL of **this** app, no trailing slash (e.g. `https://bookings.example.com`). **Must match the address users type in the browser** or OAuth redirect and the sign-in button will fail. |
+| `NEXT_PUBLIC_BETTER_AUTH_URL` | Set to the **same** value as `BETTER_AUTH_URL` for production/custom domains so the client calls `/api/auth` on the correct host (needed after `next build`). |
+| `BETTER_AUTH_TRUSTED_ORIGINS` | Optional; comma-separated extra allowed origins (e.g. `https://www.example.com,https://example.com`) if you use multiple hostnames. Server also trusts origins derived from `BETTER_AUTH_URL` and `NEXT_PUBLIC_BETTER_AUTH_URL`. |
 | `KEYCLOAK_CLIENT_ID` | Keycloak client ID. |
 | `KEYCLOAK_CLIENT_SECRET` | Keycloak client secret (confidential client). |
 | `KEYCLOAK_ISSUER` | Full realm issuer URL, e.g. `https://keycloak.kshrd.app/realms/<realm>`. |
@@ -75,6 +76,7 @@ In the Keycloak admin console, for the client used by this app:
 | Path | Role |
 |------|------|
 | `lib/auth.ts` | Better Auth server config (SQLite path, Keycloak plugin, `nextCookies()`). |
+| `lib/auth-public.ts` | Shared public base URL + trusted origins for production domains. |
 | `lib/auth-client.ts` | Browser client + `genericOAuthClient()` plugin. |
 | `app/api/auth/[...all]/route.ts` | Auth HTTP handler (`toNextJsHandler`). |
 | `middleware.ts` | Redirect unauthenticated users to `/sign-in`. |

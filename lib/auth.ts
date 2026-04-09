@@ -3,6 +3,10 @@ import Database from "better-sqlite3";
 import path from "path";
 import { genericOAuth, keycloak } from "better-auth/plugins";
 import { nextCookies } from "better-auth/next-js";
+import {
+  buildBetterAuthTrustedOrigins,
+  getBetterAuthPublicBaseUrl,
+} from "@/lib/auth-public";
 
 const authDbPath = path.join(process.cwd(), "data", "auth.db");
 
@@ -17,13 +21,14 @@ function getSecret(): string {
   return "dev-only-better-auth-secret-min-32-chars!";
 }
 
+const trustedOrigins = buildBetterAuthTrustedOrigins();
+
 export const auth = betterAuth({
   database: new Database(authDbPath),
   secret: getSecret(),
-  baseURL: process.env.BETTER_AUTH_URL ?? "http://localhost:3000",
-  trustedOrigins: process.env.BETTER_AUTH_TRUSTED_ORIGINS
-    ? process.env.BETTER_AUTH_TRUSTED_ORIGINS.split(",").map((o) => o.trim())
-    : undefined,
+  // Must match the URL users use in the browser (OAuth redirect_uri, cookies).
+  baseURL: getBetterAuthPublicBaseUrl(),
+  trustedOrigins: trustedOrigins.length > 0 ? trustedOrigins : undefined,
   emailAndPassword: { enabled: false },
   plugins: [
     genericOAuth({

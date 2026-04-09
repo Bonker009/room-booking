@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { authClient } from "@/lib/auth-client";
 import { LogIn } from "lucide-react";
+import { toast } from "sonner";
 
 function SignInContent() {
   const searchParams = useSearchParams();
@@ -27,11 +28,40 @@ function SignInContent() {
         className="bg-gradient-to-r from-primary to-[#003d6b] text-primary-foreground hover:opacity-95"
         disabled={pending}
         onClick={() => {
-          setPending(true);
-          void authClient.signIn.oauth2({
-            providerId: "keycloak",
-            callbackURL,
-          });
+          void (async () => {
+            setPending(true);
+            try {
+              const { data, error } = await authClient.signIn.oauth2({
+                providerId: "keycloak",
+                callbackURL,
+                disableRedirect: true,
+              });
+              if (error) {
+                toast.error("Could not start sign-in", {
+                  description:
+                    error.message ??
+                    "Check server BETTER_AUTH_URL / NEXT_PUBLIC_BETTER_AUTH_URL match this site, and Keycloak valid redirect URIs.",
+                });
+                setPending(false);
+                return;
+              }
+              const url = data?.url;
+              if (url && typeof window !== "undefined") {
+                window.location.assign(url);
+                return;
+              }
+              toast.error("Could not start sign-in", {
+                description:
+                  "No redirect URL from server. Set BETTER_AUTH_URL (and NEXT_PUBLIC_BETTER_AUTH_URL) to your live site URL (e.g. https://your-domain.com).",
+              });
+            } catch (e) {
+              toast.error("Could not start sign-in", {
+                description:
+                  e instanceof Error ? e.message : "Network or server error.",
+              });
+            }
+            setPending(false);
+          })();
         }}
       >
         <LogIn className="mr-2 h-4 w-4" />
