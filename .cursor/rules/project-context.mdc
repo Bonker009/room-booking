@@ -5,10 +5,23 @@ alwaysApply: true
 
 # room-booking — agent context
 
-Before non-trivial edits, read **`AGENTS.md`** (agent memory) and **`README.md`** (human-oriented setup and auth).
+Before non-trivial edits, read **`AGENTS.md`** (agent memory) and **`README.md`** (setup, prod checklist, Keycloak).
 
-- **Auth**: Better Auth + Keycloak; SQLite `data/auth.db`; handler `app/api/auth/[...all]/route.ts`; gate `middleware.ts`; API guard `lib/require-session.ts`.
-- **Bookings**: `data/bookings.json`, `lib/db.ts`, routes under `app/api/bookings/`.
-- **Env**: `.env.example` — `BETTER_AUTH_*`, `KEYCLOAK_*`; Keycloak callback `{BETTER_AUTH_URL}/api/auth/oauth2/callback/keycloak`.
+## Auth
 
-When changing auth or session behavior, update **`AGENTS.md`** and **`README.md`** if contracts or paths change.
+- **Server**: `lib/auth.ts` + **`lib/auth-public.ts`** (`getBetterAuthPublicBaseUrl`, `buildBetterAuthTrustedOrigins`), handler `app/api/auth/[...all]/route.ts`.
+- **Client**: `lib/auth-client.ts` — set **`NEXT_PUBLIC_BETTER_AUTH_URL`** same as **`BETTER_AUTH_URL`** in production; rebuild after changing it.
+- **Sign-in**: `app/sign-in/page.tsx` — OAuth with **`disableRedirect: true`**, then **`window.location.assign`**; toasts on failure.
+- **Gate**: `middleware.ts` → `/sign-in` if no session cookie.
+- **APIs**: `lib/require-session.ts` — **`requireApiSession()`**; **`bookingActorFromSessionUser()`** for **`bookedBy`** / **`bookedByEmail`** (never from untrusted body).
+
+## Data
+
+- Bookings: **`data/bookings.json`**, **`lib/db.ts`**, **`app/api/bookings/**`**
+- Sessions: **`data/auth.db`** (gitignored; persist via Docker volume `./data`)
+
+## Env reference
+
+`.env.example` — **`BETTER_AUTH_*`**, **`NEXT_PUBLIC_BETTER_AUTH_URL`**, **`KEYCLOAK_*`**, optional **`BETTER_AUTH_TRUSTED_ORIGINS`**. Keycloak callback: **`{BETTER_AUTH_URL}/api/auth/oauth2/callback/keycloak`**.
+
+When auth or identity rules change, update **README**, **AGENTS**, **`.env.example`**, and this rule if it affects defaults or file locations.
