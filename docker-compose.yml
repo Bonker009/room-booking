@@ -3,10 +3,12 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    env_file:
+      - .env
     container_name: kshrd-booking-room
     restart: unless-stopped
     ports:
       - "127.0.0.1:9999:3000"
     volumes:
       # Persist bookings.json on the host (same path as dev)
-      - ./data:/app/data
+      - ./data/bookings.json:/app/data/bookings.json

@@ -11,8 +11,6 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
 RUN npm run build
-RUN npx @better-auth/cli@latest migrate --config lib/auth.ts --yes
-
 FROM base AS runner
 WORKDIR /app
 
