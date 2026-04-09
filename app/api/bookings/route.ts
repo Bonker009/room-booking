@@ -110,7 +110,7 @@ export async function POST(request: Request) {
     })
 
     // Revalidate bookings cache
-    revalidateTag("bookings")
+    revalidateTag("bookings", "max")
 
     return NextResponse.json(newBooking, { status: 201 })
   } catch (error) {

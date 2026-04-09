@@ -1,20 +1,16 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   CalendarIcon,
   Clock,
   Search,
-  Trash2,
-  Users,
   BookOpen,
   Plus,
   X,
   Filter,
-  Edit,
   Calendar,
   LayoutDashboard,
-  PersonStandingIcon,
-  Eye,
+  ListFilter,
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { Button } from "@/components/ui/button";
@@ -36,27 +32,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import { Calendar as CalendarComponent } from "@/components/ui/calendar";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
 import Link from "next/link";
+import { DateRangePicker } from "@/components/date-range-picker";
+import type { DateRangeValue } from "@/components/date-range-picker";
 import { BookingDialog } from "@/components/booking-dialog";
 import { BookingDetailsDialog } from "@/components/booking-details-dialog";
+import { BookingsTable } from "@/components/booking-views";
+import {
+  columnFiltersActive,
+  computeDisplayedBookings,
+  type ColumnKey,
+  type TableColumnFilterState,
+} from "@/lib/booking-display";
 import { cn } from "@/lib/utils";
+import Image from "next/image";
 
 // Type definitions
 interface Booking {
@@ -84,7 +73,9 @@ export default function Home() {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [filteredBookings, setFilteredBookings] = useState<Booking[]>([]);
   const [filter, setFilter] = useState("");
-  const [dateFilter, setDateFilter] = useState<Date | undefined>(undefined);
+  const [dateRangeFilter, setDateRangeFilter] = useState<
+    DateRangeValue | undefined
+  >(undefined);
   const [roomFilter, setRoomFilter] = useState<string>("");
   const [isLoading, setIsLoading] = useState(true);
   const [openDialog, setOpenDialog] = useState(false);
@@ -93,16 +84,16 @@ export default function Home() {
   const [viewingBooking, setViewingBooking] = useState<Booking | null>(null);
   const [activeTab, setActiveTab] = useState("today");
   const [editingBooking, setEditingBooking] = useState<Booking | null>(null);
+  const [sortColumn, setSortColumn] = useState<ColumnKey | null>(null);
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
+  const [columnFilters, setColumnFilters] = useState<TableColumnFilterState>(
+    {},
+  );
 
   // Fetch bookings on component mount
   useEffect(() => {
     fetchBookings();
   }, []);
-
-  // Filter bookings when filter or bookings change
-  useEffect(() => {
-    filterBookings();
-  }, [filter, dateFilter, roomFilter, bookings, activeTab]);
 
   const fetchBookings = async () => {
     setIsLoading(true);
@@ -125,7 +116,7 @@ export default function Home() {
     }
   };
 
-  const filterBookings = () => {
+  const filterBookings = useCallback(() => {
     let filtered = bookings;
     // Filter by search term
     if (filter) {
@@ -141,17 +132,31 @@ export default function Home() {
         ].some((val) => val?.toLowerCase().includes(filter.toLowerCase()))
       );
     }
-    // Filter by specific date
-    if (dateFilter) {
-      const selectedDate = format(dateFilter, "yyyy-MM-dd");
-      filtered = filtered.filter((b) => b.date === selectedDate);
+    const hasToolbarDateRange = Boolean(
+      dateRangeFilter?.from || dateRangeFilter?.to,
+    );
+    if (hasToolbarDateRange) {
+      const fromIso = dateRangeFilter?.from
+        ? format(dateRangeFilter.from, "yyyy-MM-dd")
+        : undefined;
+      const toIso = dateRangeFilter?.to
+        ? format(dateRangeFilter.to, "yyyy-MM-dd")
+        : undefined;
+      filtered = filtered.filter((b) => {
+        if (fromIso && toIso) {
+          return b.date >= fromIso && b.date <= toIso;
+        }
+        if (fromIso) return b.date >= fromIso;
+        if (toIso) return b.date <= toIso;
+        return true;
+      });
     }
     // Filter by room
     if (roomFilter) {
       filtered = filtered.filter((b) => b.className === roomFilter);
     }
-    // Filter by tab (only if no specific date filter is applied)
-    if (!dateFilter) {
+    // Filter by tab (only if no toolbar date range is applied)
+    if (!hasToolbarDateRange) {
       const now = new Date();
       const todayStr = now.toISOString().split("T")[0];
 
@@ -189,7 +194,12 @@ export default function Home() {
       return a.startTime.localeCompare(b.startTime);
     });
     setFilteredBookings(filtered);
-  };
+  }, [bookings, filter, dateRangeFilter, roomFilter, activeTab]);
+
+  // Filter bookings when filter or bookings change
+  useEffect(() => {
+    filterBookings();
+  }, [filterBookings]);
 
   const handleCreateSubmit = async (formData: FormData) => {
     try {
@@ -314,9 +324,55 @@ export default function Home() {
 
   const clearAllFilters = () => {
     setFilter("");
-    setDateFilter(undefined);
+    setDateRangeFilter(undefined);
     setRoomFilter("");
     setActiveTab("all");
+    setColumnFilters({});
+    setSortColumn(null);
+    setSortDirection("asc");
+  };
+
+  const clearColumnFilters = () => {
+    setColumnFilters({});
+  };
+
+  const handleSortClick = (col: ColumnKey) => {
+    if (sortColumn === col) {
+      setSortDirection((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortColumn(col);
+      setSortDirection("asc");
+    }
+  };
+
+  const onColumnFiltersUpdate = (
+    updater: (prev: TableColumnFilterState) => TableColumnFilterState,
+  ) => {
+    setColumnFilters(updater);
+  };
+
+  const onClearColumnFilter = (key: ColumnKey) => {
+    setColumnFilters((prev) => {
+      const next = { ...prev };
+      switch (key) {
+        case "date":
+          delete next.date;
+          break;
+        case "time":
+          delete next.time;
+          break;
+        case "group":
+          delete next.group;
+          break;
+        case "room":
+          delete next.room;
+          break;
+        case "status":
+          delete next.status;
+          break;
+      }
+      return next;
+    });
   };
 
   const formatDate = (dateString: string) => {
@@ -357,14 +413,14 @@ export default function Home() {
         Number.parseInt(endMinutes, 10)
       );
       if (now < startTime) {
-        return { label: "Upcoming", color: "bg-blue-100 text-blue-800" };
+        return { label: "Upcoming", color: "bg-chart-5/15 text-chart-5" };
       } else if (now >= startTime && now <= endTime) {
-        return { label: "In Progress", color: "bg-green-100 text-green-800" };
+        return { label: "In Progress", color: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300" };
       } else {
-        return { label: "Completed", color: "bg-gray-100 text-gray-800" };
+        return { label: "Completed", color: "bg-muted text-muted-foreground" };
       }
     } catch (e) {
-      return { label: "Unknown", color: "bg-gray-100 text-gray-800" };
+      return { label: "Unknown", color: "bg-muted text-muted-foreground" };
     }
   };
 
@@ -380,7 +436,7 @@ export default function Home() {
       "Director Room": "bg-slate-100 text-slate-800",
       "Deputy Director Room": "bg-orange-100 text-orange-800",
     };
-    return classColors[className] || "bg-gray-100 text-gray-800";
+    return classColors[className] || "bg-muted text-muted-foreground";
   };
 
   const getTodayBookingsCount = () => {
@@ -388,31 +444,54 @@ export default function Home() {
     return bookings.filter((b) => b.date === today).length;
   };
 
+  const displayedBookings = computeDisplayedBookings(
+    filteredBookings,
+    columnFilters,
+    sortColumn,
+    sortDirection,
+    (b) => getBookingStatus(b).label,
+  );
+
+  const hasActiveColumnFilters = columnFiltersActive(columnFilters);
+
   return (
-    <div className="min-h-screen bg-gradient-to-b from-sky-50 to-white">
-      <header className="bg-white border-b sticky top-0 z-10 shadow-sm">
+    <div className="min-h-screen bg-gradient-to-b from-muted/50 to-background">
+      <header className="bg-card border-b border-border sticky top-0 z-10 shadow-[0_1px_3px_rgb(0_81_141/0.06)]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
-            <div className="flex items-center">
-              <BookOpen className="h-8 w-8 text-sky-600 mr-2" />
-              <h1 className="text-xl font-semibold bg-gradient-to-r from-sky-600 to-indigo-600 bg-clip-text text-transparent">
-                Room Booking System
-              </h1>
-            </div>
+            <Link
+              href="/"
+              className={cn(
+                "flex min-w-0 items-center gap-3 rounded-md py-1 pr-2 outline-none",
+                "transition-opacity hover:opacity-90",
+                "focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+              )}
+            >
+              <Image
+                src="/kshrd-logo.png"
+                alt=""
+                width={36}
+                height={36}
+                className="h-9 w-9 shrink-0 object-contain"
+                priority
+              />
+              <span className="bg-border h-8 w-px shrink-0" aria-hidden />
+              <div className="min-w-0 leading-tight">
+                <h1 className="text-primary truncate text-lg font-semibold tracking-tight sm:text-xl">
+                  Room Booking System
+                </h1>
+                <p className="text-muted-foreground truncate text-xs font-normal">
+                  KSHRD · Room booking
+                </p>
+              </div>
+            </Link>
             <nav className="flex items-center space-x-4">
               <Link
                 href="/"
-                className="flex items-center text-sky-600 hover:text-sky-800"
+                className="flex items-center text-primary hover:text-primary/85"
               >
                 <LayoutDashboard className="h-4 w-4 mr-1" />
                 <span>Dashboard</span>
-              </Link>
-              <Link
-                href="/founder"
-                className="flex items-center text-sky-600 hover:text-sky-800"
-              >
-                <PersonStandingIcon className="h-4 w-4 mr-1" />
-                <span>Founder</span>
               </Link>
             </nav>
           </div>
@@ -422,7 +501,7 @@ export default function Home() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Today's Summary Card */}
         <div className="mb-6">
-          <Card className="bg-gradient-to-r from-sky-500 to-indigo-500 text-white border-none shadow-lg">
+          <Card className="bg-gradient-to-r from-primary to-[#003d6b] text-primary-foreground border-none shadow-[0_4px_20px_-4px_rgb(0_81_141/0.35)]">
             <CardContent className=" ">
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div className="flex items-center">
@@ -431,7 +510,7 @@ export default function Home() {
                     <h2 className="text-2xl font-bold">
                       {format(new Date(), "EEEE, MMMM d, yyyy")}
                     </h2>
-                    <p className="text-sky-100">
+                    <p className="text-primary-foreground/85">
                       {getTodayBookingsCount()} booking
                       {getTodayBookingsCount() !== 1 ? "s" : ""} scheduled for
                       today
@@ -441,7 +520,7 @@ export default function Home() {
                 <Button
                   onClick={() => setOpenDialog(true)}
                   variant="secondary"
-                  className="bg-white text-sky-600 hover:bg-sky-50"
+                  className="bg-card text-primary hover:bg-muted"
                 >
                   <Plus className="h-4 w-4 mr-2" />
                   Add Booking
@@ -452,10 +531,10 @@ export default function Home() {
         </div>
 
         <Card className="border-none shadow-lg pt-0 pb-4">
-          <CardHeader className="pb-3 bg-gradient-to-r from-sky-50 to-indigo-50 rounded-t-lg pt-8">
+          <CardHeader className="pb-3 bg-gradient-to-r from-muted to-muted/70 rounded-t-lg pt-8">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div>
-                <CardTitle className="text-sky-700 text-2xl">
+                <CardTitle className="text-primary text-2xl">
                   Room Bookings
                 </CardTitle>
                 <CardDescription>
@@ -468,7 +547,7 @@ export default function Home() {
                   <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
                   <Input
                     placeholder="Search bookings..."
-                    className="pl-10 w-full sm:w-[250px] border-sky-200 focus-visible:ring-sky-500"
+                    className="pl-10 w-full sm:w-[250px] border-primary/20 focus-visible:ring-primary/35"
                     value={filter}
                     maxLength={20}
                     onChange={(e) => setFilter(e.target.value)}
@@ -484,34 +563,16 @@ export default function Home() {
                     </Button>
                   )}
                 </div>
-                {/* Date Filter */}
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className={cn(
-                        "w-full sm:w-[200px] justify-start text-left font-normal border-sky-200 hover:bg-sky-50",
-                        !dateFilter && "text-muted-foreground"
-                      )}
-                    >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {dateFilter
-                        ? format(dateFilter, "PPP")
-                        : "Filter by date"}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <CalendarComponent
-                      mode="single"
-                      selected={dateFilter}
-                      onSelect={setDateFilter}
-                      initialFocus
-                    />
-                  </PopoverContent>
-                </Popover>
+                <DateRangePicker
+                  date={dateRangeFilter}
+                  onDateChange={setDateRangeFilter}
+                  placeholder="Pick a date"
+                  fieldClassName="w-full sm:w-auto"
+                  buttonClassName="w-full min-w-[220px] justify-start border-primary/20 hover:bg-muted sm:w-[260px]"
+                />
                 {/* Room Filter */}
                 <Select value={roomFilter} onValueChange={setRoomFilter}>
-                  <SelectTrigger className="w-full sm:w-[180px] border-sky-200 focus:ring-sky-500">
+                  <SelectTrigger className="w-full sm:w-[180px] border-primary/20 focus:ring-primary/35">
                     <div className="flex items-center">
                       <Filter className="mr-2 h-4 w-4 text-muted-foreground" />
                       <SelectValue placeholder="Filter by room" />
@@ -528,10 +589,13 @@ export default function Home() {
                   </SelectContent>
                 </Select>
                 {/* Clear Filters Button */}
-                {(filter || dateFilter || roomFilter) && (
+                {(filter ||
+                  dateRangeFilter?.from ||
+                  dateRangeFilter?.to ||
+                  roomFilter) && (
                   <Button
                     variant="outline"
-                    className="h-10 px-3 border-sky-200 hover:bg-sky-50 text-sm bg-transparent"
+                    className="h-10 px-3 border-primary/20 hover:bg-muted text-sm bg-transparent"
                     onClick={clearAllFilters}
                     title="Clear all filters"
                   >
@@ -550,33 +614,33 @@ export default function Home() {
                 onValueChange={setActiveTab}
                 className="w-full"
               >
-                <TabsList className="w-full bg-sky-50 p-1 rounded-xl grid grid-cols-2 md:grid-cols-4 gap-1">
+                <TabsList className="h-auto w-full flex flex-nowrap items-stretch justify-start gap-0 overflow-x-auto overflow-y-hidden rounded-none border-0 border-b border-border bg-transparent p-0 text-foreground scrollbar-brand">
                   <TabsTrigger
                     value="today"
-                    className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-sky-500 data-[state=active]:to-indigo-500 data-[state=active]:text-white rounded-lg transition-all duration-200 flex items-center justify-center py-2"
+                    className="shrink-0 min-h-10 flex-none items-center justify-center gap-1.5 rounded-none border-0 border-b-2 border-transparent bg-transparent px-3 py-2.5 text-sm font-medium text-muted-foreground shadow-none transition-colors duration-200 ease-out hover:text-foreground data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:font-semibold data-[state=active]:text-primary data-[state=active]:shadow-none dark:data-[state=active]:border-primary dark:data-[state=active]:bg-transparent"
                   >
-                    <CalendarIcon className="h-4 w-4 mr-2" />
+                    <CalendarIcon className="h-4 w-4 shrink-0" />
                     <span>Today</span>
                   </TabsTrigger>
                   <TabsTrigger
                     value="upcoming"
-                    className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-sky-500 data-[state=active]:to-indigo-500 data-[state=active]:text-white rounded-lg transition-all duration-200 flex items-center justify-center py-2"
+                    className="shrink-0 min-h-10 flex-none items-center justify-center gap-1.5 rounded-none border-0 border-b-2 border-transparent bg-transparent px-3 py-2.5 text-sm font-medium text-muted-foreground shadow-none transition-colors duration-200 ease-out hover:text-foreground data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:font-semibold data-[state=active]:text-primary data-[state=active]:shadow-none dark:data-[state=active]:border-primary dark:data-[state=active]:bg-transparent"
                   >
-                    <Clock className="h-4 w-4 mr-2" />
+                    <Clock className="h-4 w-4 shrink-0" />
                     <span>Upcoming</span>
                   </TabsTrigger>
                   <TabsTrigger
                     value="past"
-                    className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-sky-500 data-[state=active]:to-indigo-500 data-[state=active]:text-white rounded-lg transition-all duration-200 flex items-center justify-center py-2"
+                    className="shrink-0 min-h-10 flex-none items-center justify-center gap-1.5 rounded-none border-0 border-b-2 border-transparent bg-transparent px-3 py-2.5 text-sm font-medium text-muted-foreground shadow-none transition-colors duration-200 ease-out hover:text-foreground data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:font-semibold data-[state=active]:text-primary data-[state=active]:shadow-none dark:data-[state=active]:border-primary dark:data-[state=active]:bg-transparent"
                   >
-                    <Filter className="h-4 w-4 mr-2" />
+                    <Filter className="h-4 w-4 shrink-0" />
                     <span>Past</span>
                   </TabsTrigger>
                   <TabsTrigger
                     value="all"
-                    className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-sky-500 data-[state=active]:to-indigo-500 data-[state=active]:text-white rounded-lg transition-all duration-200 flex items-center justify-center py-2"
+                    className="shrink-0 min-h-10 flex-none items-center justify-center gap-1.5 rounded-none border-0 border-b-2 border-transparent bg-transparent px-3 py-2.5 text-sm font-medium text-muted-foreground shadow-none transition-colors duration-200 ease-out hover:text-foreground data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:font-semibold data-[state=active]:text-primary data-[state=active]:shadow-none dark:data-[state=active]:border-primary dark:data-[state=active]:bg-transparent"
                   >
-                    <BookOpen className="h-4 w-4 mr-2" />
+                    <BookOpen className="h-4 w-4 shrink-0" />
                     <span>All Bookings</span>
                   </TabsTrigger>
                 </TabsList>
@@ -584,224 +648,159 @@ export default function Home() {
             </div>
             {/* Filter Summary */}
             {!isLoading && (
-              <div className="mb-4 flex items-center justify-between">
-                <p className="text-sm text-gray-600">
-                  Showing {filteredBookings.length} of {bookings.length} booking
-                  {bookings.length !== 1 ? "s" : ""}
-                  {(filter || dateFilter || roomFilter) && (
-                    <span className="ml-1 text-sky-600 font-medium">
+              <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+                <p className="text-sm text-muted-foreground">
+                  Showing {displayedBookings.length} of {filteredBookings.length}{" "}
+                  in view
+                  {filteredBookings.length !== bookings.length && (
+                    <>
+                      {" "}
+                      ({bookings.length} total in system)
+                    </>
+                  )}
+                  {(filter ||
+                  dateRangeFilter?.from ||
+                  dateRangeFilter?.to ||
+                  roomFilter) && (
+                    <span className="ml-1 font-medium text-primary">
                       (filtered)
                     </span>
                   )}
                 </p>
-                {(filter || dateFilter || roomFilter) && (
-                  <div className="flex items-center gap-2 text-xs">
-                    {filter && (
-                      <Badge
-                        variant="secondary"
-                        className="bg-sky-100 text-sky-700"
-                      >
-                        Search: "{filter}"
-                      </Badge>
-                    )}
-                    {dateFilter && (
-                      <Badge
-                        variant="secondary"
-                        className="bg-sky-100 text-sky-700"
-                      >
-                        Date: {format(dateFilter, "MMM d, yyyy")}
-                      </Badge>
-                    )}
-                    {roomFilter && (
-                      <Badge
-                        variant="secondary"
-                        className="bg-sky-100 text-sky-700"
-                      >
-                        Room: {roomFilter}
-                      </Badge>
-                    )}
-                  </div>
-                )}
+                <div className="flex flex-wrap items-center gap-2">
+                  {hasActiveColumnFilters && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-8"
+                      onClick={clearColumnFilters}
+                    >
+                      Clear column filters
+                    </Button>
+                  )}
+                  {(filter ||
+                  dateRangeFilter?.from ||
+                  dateRangeFilter?.to ||
+                  roomFilter) && (
+                    <div className="flex flex-wrap items-center gap-2 text-xs">
+                      {filter && (
+                        <Badge
+                          variant="secondary"
+                          className="bg-primary/12 text-primary"
+                        >
+                          Search: {`"${filter}"`}
+                        </Badge>
+                      )}
+                      {(dateRangeFilter?.from || dateRangeFilter?.to) && (
+                        <Badge
+                          variant="secondary"
+                          className="bg-primary/12 text-primary"
+                        >
+                          Date:{" "}
+                          {dateRangeFilter?.from && dateRangeFilter?.to
+                            ? `${format(dateRangeFilter.from, "MMM d, yyyy")} – ${format(dateRangeFilter.to, "MMM d, yyyy")}`
+                            : dateRangeFilter?.from
+                              ? format(dateRangeFilter.from, "MMM d, yyyy")
+                              : dateRangeFilter?.to
+                                ? format(dateRangeFilter.to, "MMM d, yyyy")
+                                : ""}
+                        </Badge>
+                      )}
+                      {roomFilter && (
+                        <Badge
+                          variant="secondary"
+                          className="bg-primary/12 text-primary"
+                        >
+                          Room: {roomFilter}
+                        </Badge>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
             {isLoading ? (
               <div className="flex justify-center items-center py-12">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-sky-600"></div>
+                <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary border-t-transparent"></div>
               </div>
             ) : (
-              <>
-                {filteredBookings.length > 0 ? (
-                  <div className="overflow-x-auto rounded-md border border-sky-100">
-                    <table className="min-w-full divide-y divide-sky-200">
-                      <thead className="bg-sky-50">
-                        <tr>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-sky-700 uppercase tracking-wider">
-                            Date
-                          </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-sky-700 uppercase tracking-wider">
-                            Time
-                          </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-sky-700 uppercase tracking-wider">
-                            Group
-                          </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-sky-700 uppercase tracking-wider">
-                            Room
-                          </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-sky-700 uppercase tracking-wider">
-                            Status
-                          </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-sky-700 uppercase tracking-wider">
-                            Actions
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody className="bg-white divide-y divide-sky-100">
-                        {filteredBookings.map((booking) => {
-                          const status = getBookingStatus(booking);
-                          return (
-                            <tr
-                              key={booking.id}
-                              className="hover:bg-sky-50 transition-colors"
-                            >
-                              <td className="px-6 py-4 whitespace-nowrap">
-                                <div className="flex items-center">
-                                  <CalendarIcon className="h-4 w-4 mr-2 text-sky-500" />
-                                  <span className="text-sm font-medium">
-                                    {formatDate(booking.date)}
-                                  </span>
-                                </div>
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap">
-                                <div className="flex items-center">
-                                  <Clock className="h-4 w-4 mr-2 text-sky-500" />
-                                  <span className="text-sm">
-                                    {formatTime(booking.startTime)} -{" "}
-                                    {formatTime(booking.endTime)}
-                                  </span>
-                                </div>
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap">
-                                <div className="flex items-center">
-                                  <Users className="h-4 w-4 mr-2 text-sky-500" />
-                                  <span className="text-sm font-medium">
-                                    {booking.groupName}
-                                  </span>
-                                </div>
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap">
-                                <Badge
-                                  variant="outline"
-                                  className={getClassBadgeColor(
-                                    booking.className
-                                  )}
-                                >
-                                  {booking.className}
-                                </Badge>
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap">
-                                <Badge
-                                  variant="outline"
-                                  className={status.color}
-                                >
-                                  {status.label}
-                                </Badge>
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap">
-                                <div className="flex space-x-2">
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="text-sky-500 hover:text-sky-700 hover:bg-sky-50"
-                                    onClick={() => handleViewDetails(booking)}
-                                    title="View Details"
-                                  >
-                                    <Eye className="h-4 w-4" />
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="text-sky-500 hover:text-sky-700 hover:bg-sky-50"
-                                    onClick={() => handleEdit(booking)}
-                                    title="Edit Booking"
-                                  >
-                                    <Edit className="h-4 w-4" />
-                                  </Button>
-                                  <AlertDialog>
-                                    <AlertDialogTrigger asChild>
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="text-red-500 hover:text-red-700 hover:bg-red-50"
-                                        title="Delete Booking"
-                                      >
-                                        <Trash2 className="h-4 w-4" />
-                                      </Button>
-                                    </AlertDialogTrigger>
-                                    <AlertDialogContent>
-                                      <AlertDialogHeader>
-                                        <AlertDialogTitle>
-                                          Delete Booking
-                                        </AlertDialogTitle>
-                                        <AlertDialogDescription>
-                                          Are you sure you want to delete this
-                                          booking? This action cannot be undone.
-                                        </AlertDialogDescription>
-                                      </AlertDialogHeader>
-                                      <AlertDialogFooter>
-                                        <AlertDialogCancel>
-                                          Cancel
-                                        </AlertDialogCancel>
-                                        <AlertDialogAction
-                                          onClick={() =>
-                                            handleDelete(booking.id)
-                                          }
-                                          className="bg-red-500 hover:bg-red-600"
-                                        >
-                                          Delete
-                                        </AlertDialogAction>
-                                      </AlertDialogFooter>
-                                    </AlertDialogContent>
-                                  </AlertDialog>
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                ) : (
-                  <div className="text-center py-12 bg-sky-50 rounded-md border border-sky-100">
-                    <Filter className="h-12 w-12 mx-auto text-sky-400 mb-3" />
-                    <h3 className="text-lg font-medium text-sky-700">
-                      No bookings found
-                    </h3>
-                    <p className="text-sky-600 mt-1">
-                      {filter || dateFilter || roomFilter
-                        ? "No bookings match your current filters. Try adjusting your search criteria."
-                        : "Create your first booking to get started"}
-                    </p>
-                    {filter || dateFilter || roomFilter ? (
-                      <Button
-                        variant="outline"
-                        className="mt-4 border-sky-200 text-sky-600 hover:bg-sky-100 bg-transparent"
-                        onClick={clearAllFilters}
-                      >
-                        <X className="h-4 w-4 mr-2" />
-                        Clear All Filters
-                      </Button>
+              <BookingsTable
+                displayedBookings={displayedBookings}
+                sortFilter={{
+                  sortColumn,
+                  sortDirection,
+                  onSortClick: handleSortClick,
+                  columnFilters,
+                  onColumnFiltersUpdate,
+                  onClearColumnFilter,
+                }}
+                emptyState={
+                  displayedBookings.length === 0 ? (
+                    filteredBookings.length > 0 ? (
+                      <div className="text-center">
+                        <ListFilter className="mx-auto mb-3 h-12 w-12 text-muted-foreground" />
+                        <h3 className="text-lg font-medium text-primary">
+                          No rows match column filters
+                        </h3>
+                        <p className="mt-1 text-muted-foreground">
+                          Adjust or clear filters on the table headers.
+                        </p>
+                        <Button
+                          variant="outline"
+                          className="mt-4 border-primary/20 text-primary hover:bg-muted"
+                          onClick={clearColumnFilters}
+                        >
+                          Clear column filters
+                        </Button>
+                      </div>
                     ) : (
-                      <Button
-                        className="mt-4 bg-gradient-to-r from-sky-500 to-indigo-500 hover:from-sky-600 hover:to-indigo-600"
-                        onClick={() => setOpenDialog(true)}
-                      >
-                        <Plus className="h-4 w-4 mr-2" />
-                        Create Booking
-                      </Button>
-                    )}
-                  </div>
-                )}
-              </>
+                      <div className="text-center">
+                        <Filter className="mx-auto mb-3 h-12 w-12 text-muted-foreground" />
+                        <h3 className="text-lg font-medium text-primary">
+                          No bookings found
+                        </h3>
+                        <p className="mt-1 text-muted-foreground">
+                          {filter ||
+                          dateRangeFilter?.from ||
+                          dateRangeFilter?.to ||
+                          roomFilter
+                            ? "No bookings match your current filters. Try adjusting your search criteria."
+                            : "Create your first booking to get started"}
+                        </p>
+                        {filter ||
+                        dateRangeFilter?.from ||
+                        dateRangeFilter?.to ||
+                        roomFilter ? (
+                          <Button
+                            variant="outline"
+                            className="mt-4 border-primary/20 text-primary hover:bg-muted bg-transparent"
+                            onClick={clearAllFilters}
+                          >
+                            <X className="h-4 w-4 mr-2" />
+                            Clear All Filters
+                          </Button>
+                        ) : (
+                          <Button
+                            className="mt-4 bg-gradient-to-r from-primary to-[#003d6b] hover:opacity-95 text-primary-foreground"
+                            onClick={() => setOpenDialog(true)}
+                          >
+                            <Plus className="h-4 w-4 mr-2" />
+                            Create Booking
+                          </Button>
+                        )}
+                      </div>
+                    )
+                  ) : undefined
+                }
+                formatDate={formatDate}
+                formatTime={formatTime}
+                getBookingStatus={getBookingStatus}
+                getClassBadgeColor={getClassBadgeColor}
+                onViewDetails={handleViewDetails}
+                onEdit={handleEdit}
+                onDelete={handleDelete}
+              />
             )}
           </CardContent>
         </Card>

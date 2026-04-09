@@ -96,7 +96,7 @@ export async function PUT(
     });
 
     // Revalidate bookings cache
-    revalidateTag("bookings");
+    revalidateTag("bookings", "max");
 
     return NextResponse.json(updatedBooking);
   } catch (error) {
@@ -124,7 +124,7 @@ export async function DELETE(
       );
     }
 
-    revalidateTag("bookings");
+    revalidateTag("bookings", "max");
 
     return NextResponse.json({ success: true });
   } catch (error) {

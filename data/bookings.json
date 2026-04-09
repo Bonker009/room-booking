@@ -1,16 +1,5 @@
 [
-  {
-    "id": "46fa5c0b-3a75-4300-93c4-65c47957dff6",
-    "date": "2025-07-29",
-    "startTime": "14:00",
-    "endTime": "17:00",
-    "groupName": "iOS",
-    "className": "KPS",
-    "bookedBy": "N/A",
-    "purpose": "Presentation",
-    "status": "confirmed",
-    "createdAt": "2025-07-29T05:18:45.290Z"
-  },
+   
   {
     "id": "290e312d-a6f1-415c-99b8-d2d54117d9a0",
     "date": "2025-07-29",

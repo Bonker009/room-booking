@@ -212,210 +212,220 @@ export function BookingDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px] p-0 overflow-hidden rounded-lg max-h-[90vh] overflow-y-auto">
-        <div className="bg-gradient-to-r from-sky-500 to-indigo-500 p-6 text-white">
+      <DialogContent className="flex max-h-[90vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-[640px]">
+        <div className="bg-gradient-to-r from-primary to-[#003d6b] p-6 text-primary-foreground">
           <DialogHeader>
             <DialogTitle className="text-2xl font-bold">
               {editingBooking ? "Edit Booking" : "Create New Booking"}
             </DialogTitle>
-            <DialogDescription className="text-sky-100 mt-1">
+            <DialogDescription className="text-primary-foreground/85 mt-1">
               {editingBooking
                 ? "Update the details of your room reservation"
                 : "Fill in the details to book a room for your event"}
             </DialogDescription>
           </DialogHeader>
         </div>
-        <form onSubmit={handleSubmit} className="p-6 space-y-6">
-          {/* Date Field */}
-          <div className="space-y-2">
-            <Label htmlFor="date" className="text-sm font-medium">
-              Date
-            </Label>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  className={cn(
-                    "w-full justify-start text-left font-normal",
-                    !date && "text-muted-foreground",
-                    errors.date ? "border-red-500" : "border-input",
-                  )}
-                >
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {date ? format(date, "PPP") : "Select a date"}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar
-                  mode="single"
-                  selected={date}
-                  onSelect={setDate}
-                  initialFocus
-                  disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
-                />
-              </PopoverContent>
-            </Popover>
-            {errors.date && <p className="text-sm text-red-500">{errors.date}</p>}
-          </div>
-
-          {/* Time Fields */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="startTime" className="text-sm font-medium">
-                Start Time
-              </Label>
-              <Select value={startTime} onValueChange={setStartTime}>
-                <SelectTrigger
-                  id="startTime"
-                  className={cn(errors.startTime ? "border-red-500 w-full" : "border-input w-full")}
-                >
-                  <div className="flex items-center ">
-                    <Clock className="mr-2 h-4 w-4 text-muted-foreground" />
-                    <SelectValue placeholder="Select time">
-                      {startTime ? formatTimeForDisplay(startTime) : "Select time"}
-                    </SelectValue>
-                  </div>
-                </SelectTrigger>
-                <SelectContent>
-                  {timeOptions.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {errors.startTime && <p className="text-sm text-red-500">{errors.startTime}</p>}
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="endTime" className="text-sm font-medium">
-                End Time
-              </Label>
-              <Select value={endTime} onValueChange={setEndTime}>
-                <SelectTrigger
-                  id="endTime"
-                  className={cn(errors.endTime ? "border-red-500 w-full" : "border-input w-full")}
-                >
-                  <div className="flex items-center">
-                    <Clock className="mr-2 h-4 w-4 text-muted-foreground" />
-                    <SelectValue placeholder="Select time">
-                      {endTime ? formatTimeForDisplay(endTime) : "Select time"}
-                    </SelectValue>
-                  </div>
-                </SelectTrigger>
-                <SelectContent>
-                  {timeOptions.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {errors.endTime && <p className="text-sm text-red-500">{errors.endTime}</p>}
-            </div>
-          </div>
-
-          {/* Group Name Field */}
-          <div className="space-y-2">
-            <Label htmlFor="groupName" className="text-sm font-medium">
-              Group Name
-            </Label>
-            <div className="relative">
-              <Users className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                id="groupName"
-                placeholder="Enter group name"
-                className={cn("pl-10", errors.groupName ? "border-red-500" : "border-input")}
-                value={groupName}
-                onChange={(e) => setGroupName(e.target.value)}
-              />
-            </div>
-            {errors.groupName && <p className="text-sm text-red-500">{errors.groupName}</p>}
-          </div>
-
-          {/* Room Field */}
-          <div className="space-y-2">
-            <Label htmlFor="room" className="text-sm font-medium">
-              Room
-            </Label>
-            <Select value={room} onValueChange={setRoom}>
-              <SelectTrigger id="room" className={cn(errors.room ? "border-red-500 w-full" : "border-input w-full")}>
-                <div className="flex items-center">
-                  <Building2 className="mr-2 h-4 w-4 text-muted-foreground" />
-                  <SelectValue placeholder="Select a room" />
-                </div>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="BTB">BTB</SelectItem>
-                <SelectItem value="SR">SR</SelectItem>
-                <SelectItem value="PP">PP</SelectItem>
-                <SelectItem value="KPS">KPS</SelectItem>
-                <SelectItem value="PVH">PVH</SelectItem>
-                <SelectItem value="Seminar">Seminar</SelectItem>
-                <SelectItem value="Koh Kong">Koh Kong</SelectItem>
-              </SelectContent>
-            </Select>
-            {errors.room && <p className="text-sm text-red-500">{errors.room}</p>}
-          </div>
-
-          {/* Purpose Field */}
-          <div className="space-y-2">
-            <Label htmlFor="purpose" className="text-sm font-medium">
-              Purpose
-            </Label>
-            <div className="relative">
-              <FileText className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Textarea
-                id="purpose"
-                maxLength={90}
-                placeholder="Enter the purpose of this booking (e.g., Team meeting, Training session, Workshop)"
-                className={cn(
-                  "pl-10 min-h-[80px] resize-none break-words whitespace-pre-wrap overflow-wrap-anywhere",
-                  errors.purpose ? "border-red-500" : "border-input",
-                )}
-                value={purpose}
-                onChange={(e) => setPurpose(e.target.value)}
-                style={{ wordBreak: "break-word", overflowWrap: "break-word" }}
-              />
-            </div>
-            {errors.purpose && <p className="text-sm text-red-500">{errors.purpose}</p>}
-          </div>
-
-          {/* Booked By Field */}
-          <div className="space-y-2">
-            <Label htmlFor="bookedBy" className="text-sm font-medium">
-              Booked By
-            </Label>
-            <div className="relative">
-              <PersonStandingIcon className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                id="bookedBy"
-                placeholder="Enter name of person booking"
-                className={cn("pl-10", errors.bookedBy ? "border-red-500" : "border-input")}
-                value={bookedBy}
-                onChange={(e) => setBookedBy(e.target.value)}
-              />
-            </div>
-            {errors.bookedBy && <p className="text-sm text-red-500">{errors.bookedBy}</p>}
-          </div>
-
-          {errors.conflict && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md flex items-start">
-              <div className="flex-shrink-0 mr-2 mt-0.5">⚠️</div>
-              <div>
-                <p className="font-medium">Booking Conflict</p>
-                <p className="text-sm">{errors.conflict}</p>
+        <form
+          onSubmit={handleSubmit}
+          className="flex min-h-0 flex-1 flex-col overflow-hidden"
+        >
+          <div className="min-h-0 flex-1 overflow-y-auto p-6">
+            <div className="grid grid-cols-1 gap-x-4 gap-y-4 sm:grid-cols-2">
+              {/* Date + Room */}
+              <div className="space-y-2">
+                <Label htmlFor="date" className="text-sm font-medium">
+                  Date
+                </Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "w-full justify-start text-left font-normal",
+                        !date && "text-muted-foreground",
+                        errors.date ? "border-destructive" : "border-input",
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
+                      <span className="truncate">
+                        {date ? format(date, "PPP") : "Select a date"}
+                      </span>
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={date}
+                      onSelect={setDate}
+                      initialFocus
+                      disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+                    />
+                  </PopoverContent>
+                </Popover>
+                {errors.date && <p className="text-sm text-destructive">{errors.date}</p>}
               </div>
-            </div>
-          )}
 
-          <DialogFooter className="pt-4 border-t">
+              <div className="space-y-2">
+                <Label htmlFor="room" className="text-sm font-medium">
+                  Room
+                </Label>
+                <Select value={room} onValueChange={setRoom}>
+                  <SelectTrigger
+                    id="room"
+                    className={cn(errors.room ? "border-destructive w-full" : "border-input w-full")}
+                  >
+                    <div className="flex min-w-0 items-center">
+                      <Building2 className="mr-2 h-4 w-4 shrink-0 text-muted-foreground" />
+                      <SelectValue placeholder="Select a room" />
+                    </div>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="BTB">BTB</SelectItem>
+                    <SelectItem value="SR">SR</SelectItem>
+                    <SelectItem value="PP">PP</SelectItem>
+                    <SelectItem value="KPS">KPS</SelectItem>
+                    <SelectItem value="PVH">PVH</SelectItem>
+                    <SelectItem value="Seminar">Seminar</SelectItem>
+                    <SelectItem value="Koh Kong">Koh Kong</SelectItem>
+                  </SelectContent>
+                </Select>
+                {errors.room && <p className="text-sm text-destructive">{errors.room}</p>}
+              </div>
+
+              {/* Start / End time */}
+              <div className="space-y-2">
+                <Label htmlFor="startTime" className="text-sm font-medium">
+                  Start Time
+                </Label>
+                <Select value={startTime} onValueChange={setStartTime}>
+                  <SelectTrigger
+                    id="startTime"
+                    className={cn(errors.startTime ? "border-destructive w-full" : "border-input w-full")}
+                  >
+                    <div className="flex items-center">
+                      <Clock className="mr-2 h-4 w-4 shrink-0 text-muted-foreground" />
+                      <SelectValue placeholder="Select time">
+                        {startTime ? formatTimeForDisplay(startTime) : "Select time"}
+                      </SelectValue>
+                    </div>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {timeOptions.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {errors.startTime && <p className="text-sm text-destructive">{errors.startTime}</p>}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="endTime" className="text-sm font-medium">
+                  End Time
+                </Label>
+                <Select value={endTime} onValueChange={setEndTime}>
+                  <SelectTrigger
+                    id="endTime"
+                    className={cn(errors.endTime ? "border-destructive w-full" : "border-input w-full")}
+                  >
+                    <div className="flex items-center">
+                      <Clock className="mr-2 h-4 w-4 shrink-0 text-muted-foreground" />
+                      <SelectValue placeholder="Select time">
+                        {endTime ? formatTimeForDisplay(endTime) : "Select time"}
+                      </SelectValue>
+                    </div>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {timeOptions.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {errors.endTime && <p className="text-sm text-destructive">{errors.endTime}</p>}
+              </div>
+
+              {/* Group name + Booked by */}
+              <div className="space-y-2">
+                <Label htmlFor="groupName" className="text-sm font-medium">
+                  Group Name
+                </Label>
+                <div className="relative">
+                  <Users className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="groupName"
+                    placeholder="Enter group name"
+                    className={cn("pl-10", errors.groupName ? "border-destructive" : "border-input")}
+                    value={groupName}
+                    onChange={(e) => setGroupName(e.target.value)}
+                  />
+                </div>
+                {errors.groupName && <p className="text-sm text-destructive">{errors.groupName}</p>}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="bookedBy" className="text-sm font-medium">
+                  Booked By
+                </Label>
+                <div className="relative">
+                  <PersonStandingIcon className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="bookedBy"
+                    placeholder="Enter name of person booking"
+                    className={cn("pl-10", errors.bookedBy ? "border-destructive" : "border-input")}
+                    value={bookedBy}
+                    onChange={(e) => setBookedBy(e.target.value)}
+                  />
+                </div>
+                {errors.bookedBy && <p className="text-sm text-destructive">{errors.bookedBy}</p>}
+              </div>
+
+              {/* Purpose — full width */}
+              <div className="space-y-2 sm:col-span-2">
+                <Label htmlFor="purpose" className="text-sm font-medium">
+                  Purpose
+                </Label>
+                <div className="relative">
+                  <FileText className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Textarea
+                    id="purpose"
+                    maxLength={90}
+                    placeholder="Purpose (e.g. meeting, training, workshop)"
+                    className={cn(
+                      "min-h-[4.25rem] resize-y pl-10 break-words whitespace-pre-wrap [overflow-wrap:anywhere]",
+                      errors.purpose ? "border-destructive" : "border-input",
+                    )}
+                    rows={3}
+                    value={purpose}
+                    onChange={(e) => setPurpose(e.target.value)}
+                    style={{ wordBreak: "break-word", overflowWrap: "break-word" }}
+                  />
+                </div>
+                {errors.purpose && <p className="text-sm text-destructive">{errors.purpose}</p>}
+              </div>
+
+              {errors.conflict && (
+                <div className="sm:col-span-2 flex items-start rounded-md border border-destructive/25 bg-destructive/10 px-4 py-3 text-destructive">
+                  <div className="mr-2 mt-0.5 shrink-0">⚠️</div>
+                  <div>
+                    <p className="font-medium">Booking Conflict</p>
+                    <p className="text-sm">{errors.conflict}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <DialogFooter className="shrink-0 border-t bg-card px-6 py-4">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
               Cancel
             </Button>
             <Button
               type="submit"
               disabled={isSubmitting}
-              className="bg-gradient-to-r from-sky-500 to-indigo-500 hover:from-sky-600 hover:to-indigo-600 text-white"
+              className="bg-gradient-to-r from-primary to-[#003d6b] hover:opacity-95 text-primary-foreground"
             >
               {isSubmitting ? (
                 <>

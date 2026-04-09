@@ -58,25 +58,25 @@ export function BookingDetailsDialog({ open, onOpenChange, booking }: BookingDet
       "Director Room": "bg-slate-100 text-slate-800",
       "Deputy Director Room": "bg-orange-100 text-orange-800",
     }
-    return classColors[className] || "bg-gray-100 text-gray-800"
+    return classColors[className] || "bg-muted text-muted-foreground"
   }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[500px] p-0 overflow-hidden rounded-lg">
-        <div className="bg-gradient-to-r from-sky-500 to-indigo-500 p-6 text-white">
+        <div className="bg-gradient-to-r from-primary to-[#003d6b] p-6 text-primary-foreground">
           <DialogHeader>
             <div className="flex items-center justify-between">
               <div>
                 <DialogTitle className="text-2xl font-bold">Booking Details</DialogTitle>
-                <DialogDescription className="text-sky-100 mt-1">
+                <DialogDescription className="text-primary-foreground/85 mt-1">
                   Complete information about this room reservation
                 </DialogDescription>
               </div>
               <Button
                 variant="ghost"
                 size="icon"
-                className="text-white hover:bg-white/20 rounded-full"
+                className="text-primary-foreground hover:bg-primary-foreground/15 rounded-full"
                 onClick={() => onOpenChange(false)}
               >
                 <X className="h-5 w-5" />
@@ -88,22 +88,22 @@ export function BookingDetailsDialog({ open, onOpenChange, booking }: BookingDet
         <div className="p-6 space-y-6">
           {/* Date and Time Section */}
           <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-gray-900 flex items-center">
-              <CalendarIcon className="h-5 w-5 mr-2 text-sky-500" />
+            <h3 className="text-lg font-semibold text-foreground flex items-center">
+              <CalendarIcon className="h-5 w-5 mr-2 text-primary/75" />
               Date & Time
             </h3>
-            <div className="bg-sky-50 rounded-lg p-4 space-y-3">
+            <div className="bg-muted rounded-lg p-4 space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-sm font-medium text-gray-600">Date:</span>
-                <span className="text-sm font-semibold text-gray-900">{formatDate(booking.date)}</span>
+                <span className="text-sm font-medium text-muted-foreground">Date:</span>
+                <span className="text-sm font-semibold text-foreground tabular-nums">{formatDate(booking.date)}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-sm font-medium text-gray-600">Start Time:</span>
-                <span className="text-sm font-semibold text-gray-900">{formatTime(booking.startTime)}</span>
+                <span className="text-sm font-medium text-muted-foreground">Start Time:</span>
+                <span className="text-sm font-semibold text-foreground tabular-nums">{formatTime(booking.startTime)}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-sm font-medium text-gray-600">End Time:</span>
-                <span className="text-sm font-semibold text-gray-900">{formatTime(booking.endTime)}</span>
+                <span className="text-sm font-medium text-muted-foreground">End Time:</span>
+                <span className="text-sm font-semibold text-foreground tabular-nums">{formatTime(booking.endTime)}</span>
               </div>
             </div>
           </div>
@@ -112,20 +112,20 @@ export function BookingDetailsDialog({ open, onOpenChange, booking }: BookingDet
 
           {/* Room and Group Section */}
           <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-gray-900 flex items-center">
-              <Building2 className="h-5 w-5 mr-2 text-sky-500" />
+            <h3 className="text-lg font-semibold text-foreground flex items-center">
+              <Building2 className="h-5 w-5 mr-2 text-primary/75" />
               Room & Group
             </h3>
-            <div className="bg-sky-50 rounded-lg p-4 space-y-3">
+            <div className="bg-muted rounded-lg p-4 space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-sm font-medium text-gray-600">Room:</span>
+                <span className="text-sm font-medium text-muted-foreground">Room:</span>
                 <Badge variant="outline" className={getClassBadgeColor(booking.className)}>
                   {booking.className}
                 </Badge>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-sm font-medium text-gray-600">Group Name:</span>
-                <span className="text-sm font-semibold text-gray-900">{booking.groupName}</span>
+                <span className="text-sm font-medium text-muted-foreground">Group Name:</span>
+                <span className="text-sm font-semibold text-foreground">{booking.groupName}</span>
               </div>
             </div>
           </div>
@@ -134,13 +134,13 @@ export function BookingDetailsDialog({ open, onOpenChange, booking }: BookingDet
 
           {/* Purpose Section */}
           <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-gray-900 flex items-center">
-              <FileText className="h-5 w-5 mr-2 text-sky-500" />
+            <h3 className="text-lg font-semibold text-foreground flex items-center">
+              <FileText className="h-5 w-5 mr-2 text-primary/75" />
               Purpose
             </h3>
-            <div className="bg-sky-50 rounded-lg p-4">
+            <div className="bg-muted rounded-lg p-4">
               <p
-                className="text-sm text-gray-700 leading-relaxed break-all whitespace-pre-wrap word-break-break-all overflow-hidden"
+                className="text-sm text-foreground/90 leading-relaxed break-all whitespace-pre-wrap word-break-break-all overflow-hidden"
                 style={{
                   wordBreak: "break-all",
                   overflowWrap: "anywhere",
@@ -157,18 +157,18 @@ export function BookingDetailsDialog({ open, onOpenChange, booking }: BookingDet
 
           {/* Booking Information */}
           <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-gray-900 flex items-center">
-              <PersonStandingIcon className="h-5 w-5 mr-2 text-sky-500" />
+            <h3 className="text-lg font-semibold text-foreground flex items-center">
+              <PersonStandingIcon className="h-5 w-5 mr-2 text-primary/75" />
               Booking Information
             </h3>
-            <div className="bg-sky-50 rounded-lg p-4 space-y-3">
+            <div className="bg-muted rounded-lg p-4 space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-sm font-medium text-gray-600">Booked By:</span>
-                <span className="text-sm font-semibold text-gray-900">{booking.bookedBy || "N/A"}</span>
+                <span className="text-sm font-medium text-muted-foreground">Booked By:</span>
+                <span className="text-sm font-semibold text-foreground">{booking.bookedBy || "N/A"}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-sm font-medium text-gray-600">Booking ID:</span>
-                <span className="text-xs font-mono text-gray-500 bg-gray-100 px-2 py-1 rounded">{booking.id}</span>
+                <span className="text-sm font-medium text-muted-foreground">Booking ID:</span>
+                <span className="text-xs font-mono text-muted-foreground bg-background px-2 py-1 rounded-md border border-border tabular-nums">{booking.id}</span>
               </div>
             </div>
           </div>
