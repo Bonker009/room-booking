@@ -6,11 +6,17 @@ import {
   removeBooking,
   checkBookingConflicts,
 } from "@/lib/db";
+import {
+  requireApiSession,
+  bookingActorFromSessionUser,
+} from "@/lib/require-session";
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const authResult = await requireApiSession();
+  if (!authResult.ok) return authResult.response;
   try {
     const { id } = await params;
     const booking = await getBookingById(id);
@@ -34,6 +40,11 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const authResult = await requireApiSession();
+  if (!authResult.ok) return authResult.response;
+  const { bookedBy, bookedByEmail } = bookingActorFromSessionUser(
+    authResult.session.user,
+  );
   try {
     const { id } = await params;
     const body = await request.json();
@@ -44,7 +55,6 @@ export async function PUT(
       "endTime",
       "groupName",
       "className",
-      "bookedBy",
       "purpose",
     ];
 
@@ -88,7 +98,8 @@ export async function PUT(
       endTime: body.endTime,
       groupName: body.groupName,
       className: body.className,
-      bookedBy: body.bookedBy,
+      bookedBy,
+      bookedByEmail,
       purpose: body.purpose,
       description: body.description,
       attendees: body.attendees,
@@ -112,6 +123,8 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const authResult = await requireApiSession();
+  if (!authResult.ok) return authResult.response;
   try {
     const { id } = await params;
     console.log("Deleting booking with ID:", id);

@@ -8,6 +8,7 @@ export interface BookingDisplayModel {
   groupName: string;
   className: string;
   bookedBy: string;
+  bookedByEmail?: string;
   purpose: string;
 }
 
