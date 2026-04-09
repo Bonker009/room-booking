@@ -9,6 +9,7 @@ import {
 import {
   requireApiSession,
   bookingActorFromSessionUser,
+  sessionUserHasRole,
 } from "@/lib/require-session";
 
 export async function GET(
@@ -127,7 +128,28 @@ export async function DELETE(
   if (!authResult.ok) return authResult.response;
   try {
     const { id } = await params;
-    console.log("Deleting booking with ID:", id);
+    const existingBooking = await getBookingById(id);
+    if (!existingBooking) {
+      return NextResponse.json(
+        { message: "Booking not found" },
+        { status: 404 }
+      );
+    }
+
+    const { bookedByEmail } = bookingActorFromSessionUser(authResult.session.user);
+    const isAdmin = sessionUserHasRole(authResult.session.user, "role_admin");
+
+    const actorEmail = bookedByEmail.trim().toLowerCase();
+    const ownerEmail = (existingBooking.bookedByEmail ?? "").trim().toLowerCase();
+    const isOwner = Boolean(actorEmail) && Boolean(ownerEmail) && ownerEmail === actorEmail;
+
+    if (!isAdmin && !isOwner) {
+      return NextResponse.json(
+        { message: "Forbidden" },
+        { status: 403 }
+      );
+    }
+
     const success = await removeBooking(id);
 
     if (!success) {
