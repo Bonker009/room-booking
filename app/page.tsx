@@ -47,6 +47,7 @@ import {
 import { cn } from "@/lib/utils";
 import Image from "next/image";
 import { UserMenu } from "@/components/user-menu";
+import { authClient } from "@/lib/auth-client";
 
 // Type definitions
 interface Booking {
@@ -90,6 +91,7 @@ export default function Home() {
   const [columnFilters, setColumnFilters] = useState<TableColumnFilterState>(
     {},
   );
+  const { data: session } = authClient.useSession();
 
   // Fetch bookings on component mount
   useEffect(() => {
@@ -458,6 +460,32 @@ export default function Home() {
 
   const hasActiveColumnFilters = columnFiltersActive(columnFilters);
 
+  const sessionUserHasRole = (user: any, role: string): boolean => {
+    const want = String(role ?? "").trim().toLowerCase();
+    if (!want) return false;
+
+    const roles: unknown[] = [];
+    if (Array.isArray(user?.roles)) roles.push(...user.roles);
+    if (typeof user?.role === "string") roles.push(user.role);
+    if (Array.isArray(user?.realm_access?.roles)) roles.push(...user.realm_access.roles);
+
+    const resourceAccess = user?.resource_access;
+    if (resourceAccess && typeof resourceAccess === "object") {
+      for (const v of Object.values(resourceAccess)) {
+        if (Array.isArray((v as any)?.roles)) roles.push(...(v as any).roles);
+      }
+    }
+
+    return roles.some((r) => String(r ?? "").trim().toLowerCase() === want);
+  };
+
+  const actorEmail = (session?.user?.email ?? "").trim().toLowerCase();
+  const isAdmin = sessionUserHasRole(session?.user, "role_admin");
+  const canManageBooking = (b: Booking) => {
+    const ownerEmail = (b.bookedByEmail ?? "").trim().toLowerCase();
+    return Boolean(isAdmin) || (Boolean(actorEmail) && Boolean(ownerEmail) && ownerEmail === actorEmail);
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-muted/50 to-background">
       <header className="bg-card border-b border-border sticky top-0 z-10 shadow-[0_1px_3px_rgb(0_81_141/0.06)]">
@@ -740,6 +768,7 @@ export default function Home() {
                   onColumnFiltersUpdate,
                   onClearColumnFilter,
                 }}
+                canManageBooking={canManageBooking}
                 emptyState={
                   displayedBookings.length === 0 ? (
                     filteredBookings.length > 0 ? (

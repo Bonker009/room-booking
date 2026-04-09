@@ -76,6 +76,16 @@ export async function PUT(
       );
     }
 
+    // Only booking owner or role_admin can edit.
+    const isAdmin = sessionUserHasRole(authResult.session.user, "role_admin");
+    const actorEmail = bookedByEmail.trim().toLowerCase();
+    const ownerEmail = (existingBooking.bookedByEmail ?? "").trim().toLowerCase();
+    const isOwner =
+      Boolean(actorEmail) && Boolean(ownerEmail) && ownerEmail === actorEmail;
+    if (!isAdmin && !isOwner) {
+      return NextResponse.json({ message: "Forbidden" }, { status: 403 });
+    }
+
     const hasConflict = await checkBookingConflicts(
       {
         date: body.date,

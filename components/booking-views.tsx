@@ -68,6 +68,7 @@ interface SharedProps {
   onViewDetails: (booking: BookingDisplayModel) => void;
   onEdit: (booking: BookingDisplayModel) => void;
   onDelete: (id: string) => void;
+  canManageBooking?: (booking: BookingDisplayModel) => boolean;
 }
 
 const TIME_SLOT_OPTIONS = getTableTimeSlotOptions();
@@ -572,6 +573,7 @@ export function BookingsTable({
     onViewDetails,
     onEdit,
     onDelete,
+    canManageBooking,
   } = shared;
 
   return (
@@ -610,6 +612,7 @@ export function BookingsTable({
           ) : (
             displayedBookings.map((booking, index) => {
               const status = getBookingStatus(booking);
+              const canManage = canManageBooking?.(booking) ?? true;
               return (
                 <tr
                   key={booking.id}
@@ -667,45 +670,51 @@ export function BookingsTable({
                       >
                         <Eye className="h-4 w-4" />
                       </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="text-primary/75 hover:text-primary hover:bg-muted"
-                        onClick={() => onEdit(booking)}
-                        title="Edit Booking"
-                      >
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
+                      {canManage ? (
+                        <>
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                            title="Delete Booking"
+                            className="text-primary/75 hover:text-primary hover:bg-muted"
+                            onClick={() => onEdit(booking)}
+                            title="Edit Booking"
                           >
-                            <Trash2 className="h-4 w-4" />
+                            <Edit className="h-4 w-4" />
                           </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Delete Booking</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              Are you sure you want to delete this booking? This
-                              action cannot be undone.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction
-                              onClick={() => onDelete(booking.id)}
-                              className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
-                            >
-                              Delete
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                                title="Delete Booking"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>
+                                  Delete Booking
+                                </AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Are you sure you want to delete this booking?
+                                  This action cannot be undone.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction
+                                  onClick={() => onDelete(booking.id)}
+                                  className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+                                >
+                                  Delete
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </>
+                      ) : null}
                     </div>
                   </td>
                 </tr>
