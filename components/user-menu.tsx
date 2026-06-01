@@ -2,6 +2,11 @@
 
 import { authClient } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { LogOut, User } from "lucide-react";
 
 export function UserMenu() {
@@ -31,21 +36,26 @@ export function UserMenu() {
         <User className="mr-1 inline h-3.5 w-3.5 align-text-bottom" />
         {label}
       </span>
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        className="h-8 border-primary/20 text-primary hover:bg-muted"
-        onClick={() => {
-          void (async () => {
-            await authClient.signOut();
-            window.location.href = "/sign-in";
-          })();
-        }}
-      >
-        <LogOut className="mr-1 h-3.5 w-3.5" />
-        Sign out
-      </Button>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-8 border-primary/20 text-primary hover:bg-muted"
+            onClick={() => {
+              void (async () => {
+                await authClient.signOut();
+                window.location.href = "/sign-in";
+              })();
+            }}
+          >
+            <LogOut className="mr-1 h-3.5 w-3.5" />
+            Sign out
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>Sign out of your account</TooltipContent>
+      </Tooltip>
     </div>
   );
 }

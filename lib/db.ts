@@ -2,6 +2,9 @@
 import { v4 as uuidv4 } from "uuid";
 import { promises as fs } from "fs";
 import path from "path";
+import { format } from "date-fns";
+import { computeBookingStatusLabel } from "@/lib/booking-status-label";
+
 const DATA_PATH = path.join(process.cwd(), "data", "bookings.json");
 export interface Booking {
   id: string;
@@ -22,6 +25,8 @@ export interface Booking {
   attendees?: number;
   recurring?: RecurringPattern;
   status?: "confirmed" | "pending" | "cancelled";
+  /** Shared id for multi-day range bookings created together. */
+  seriesId?: string;
 }
 
 export interface BookingQuery {
@@ -29,8 +34,25 @@ export interface BookingQuery {
   endDate?: string;
   className?: string;
   groupName?: string;
+  /** Computed status label: Upcoming | In Progress | Completed */
   status?: string;
-  sortBy?: "date" | "createdAt" | "className";
+  search?: string;
+  tab?: "today" | "upcoming" | "past" | "all";
+  startTimeFrom?: string;
+  endTimeBy?: string;
+  statusLabel?: string;
+  groupFilter?: string;
+  roomExact?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  sortBy?:
+    | "date"
+    | "time"
+    | "group"
+    | "room"
+    | "status"
+    | "createdAt"
+    | "className";
   sortOrder?: "asc" | "desc";
   page?: number;
   limit?: number;
@@ -125,6 +147,28 @@ export async function removeBooking(id: string): Promise<boolean> {
   return index !== -1;
 }
 
+export async function findConflictingBooking(
+  booking: {
+    date: string;
+    startTime: string;
+    endTime: string;
+    className: string;
+  },
+  excludeId?: string,
+): Promise<Booking | null> {
+  const bookings = await readData();
+  return (
+    bookings.find(
+      (b) =>
+        b.id !== excludeId &&
+        b.date === booking.date &&
+        b.className === booking.className &&
+        booking.startTime < b.endTime &&
+        booking.endTime > b.startTime,
+    ) ?? null
+  );
+}
+
 export async function checkBookingConflicts(
   booking: {
     date: string;
@@ -147,9 +191,12 @@ export async function checkBookingConflicts(
 }
 
 export async function getBookings(
-  query: BookingQuery & { bookedBy?: string }
+  query: BookingQuery & { bookedBy?: string },
 ): Promise<{ bookings: Booking[]; total: number }> {
   let bookings = await readData();
+  const now = new Date();
+  const todayStr = now.toISOString().split("T")[0];
+  const hasToolbarDateRange = Boolean(query.startDate || query.endDate);
 
   if (query.startDate != null) {
     bookings = bookings.filter((b) => b.date >= (query.startDate ?? ""));
@@ -159,10 +206,40 @@ export async function getBookings(
     bookings = bookings.filter((b) => b.date <= (query.endDate ?? ""));
   }
 
+  if (query.dateFrom?.trim()) {
+    bookings = bookings.filter((b) => b.date >= query.dateFrom!);
+  }
+
+  if (query.dateTo?.trim()) {
+    bookings = bookings.filter((b) => b.date <= query.dateTo!);
+  }
+
+  if (query.search?.trim()) {
+    const q = query.search.trim().toLowerCase();
+    bookings = bookings.filter((b) =>
+      [
+        b.date,
+        b.startTime,
+        b.endTime,
+        b.groupName,
+        b.className,
+        b.bookedBy,
+        b.bookedByEmail,
+        b.purpose,
+      ]
+        .filter(Boolean)
+        .some((val) => String(val).toLowerCase().includes(q)),
+    );
+  }
+
   if (query.className) {
     bookings = bookings.filter((b) =>
-      b.className.toLowerCase().includes(query.className!.toLowerCase())
+      b.className.toLowerCase().includes(query.className!.toLowerCase()),
     );
+  }
+
+  if (query.roomExact?.trim()) {
+    bookings = bookings.filter((b) => b.className === query.roomExact);
   }
 
   if (query.groupName) {
@@ -170,27 +247,111 @@ export async function getBookings(
       (b) =>
         b.groupName.toLowerCase().includes(query.groupName!.toLowerCase()) ||
         (b.purpose &&
-          b.purpose.toLowerCase().includes(query.groupName!.toLowerCase()))
+          b.purpose.toLowerCase().includes(query.groupName!.toLowerCase())),
     );
   }
- 
+
+  if (query.groupFilter?.trim()) {
+    const q = query.groupFilter.trim().toLowerCase();
+    bookings = bookings.filter((b) =>
+      b.groupName.toLowerCase().includes(q),
+    );
+  }
+
   if (query.bookedBy) {
     bookings = bookings.filter(
       (b) =>
         b.bookedBy &&
-        b.bookedBy.toLowerCase().includes(query.bookedBy!.toLowerCase())
+        b.bookedBy.toLowerCase().includes(query.bookedBy!.toLowerCase()),
     );
   }
 
+  if (query.startTimeFrom?.trim()) {
+    bookings = bookings.filter((b) => b.startTime >= query.startTimeFrom!);
+  }
+
+  if (query.endTimeBy?.trim()) {
+    bookings = bookings.filter((b) => b.endTime <= query.endTimeBy!);
+  }
+
+  const statusFilter = query.statusLabel?.trim() || query.status?.trim();
+  if (statusFilter) {
+    bookings = bookings.filter(
+      (b) => computeBookingStatusLabel(b, now) === statusFilter,
+    );
+  }
+
+  if (!hasToolbarDateRange && query.tab && query.tab !== "all") {
+    if (query.tab === "today") {
+      bookings = bookings.filter((b) => b.date === todayStr);
+    } else if (query.tab === "upcoming") {
+      bookings = bookings.filter((b) => {
+        if (b.date > todayStr) return true;
+        if (b.date < todayStr) return false;
+        const [endHour, endMin] = b.endTime.split(":").map(Number);
+        const bookingEnd = new Date(b.date);
+        bookingEnd.setHours(endHour, endMin, 0, 0);
+        return bookingEnd > now;
+      });
+    } else if (query.tab === "past") {
+      bookings = bookings.filter((b) => {
+        if (b.date < todayStr) return true;
+        if (b.date > todayStr) return false;
+        const [endHour, endMin] = b.endTime.split(":").map(Number);
+        const bookingEnd = new Date(b.date);
+        bookingEnd.setHours(endHour, endMin, 0, 0);
+        return bookingEnd <= now;
+      });
+    }
+  }
+
   const total = bookings.length;
+  const order = query.sortOrder === "desc" ? -1 : 1;
 
   if (query.sortBy) {
-    const order = query.sortOrder === "asc" ? 1 : -1;
     bookings.sort((a, b) => {
-      const sortBy = query.sortBy as keyof Booking;
-      if ((a[sortBy] ?? "") < (b[sortBy] ?? "")) return -1 * order;
-      if ((a[sortBy] ?? "") > (b[sortBy] ?? "")) return 1 * order;
-      return 0;
+      let primary = 0;
+      switch (query.sortBy) {
+        case "date":
+          primary = a.date.localeCompare(b.date);
+          if (primary === 0) primary = a.startTime.localeCompare(b.startTime);
+          break;
+        case "time":
+          primary = a.startTime.localeCompare(b.startTime);
+          if (primary === 0) primary = a.endTime.localeCompare(b.endTime);
+          if (primary === 0) primary = a.date.localeCompare(b.date);
+          break;
+        case "group":
+          primary = a.groupName.localeCompare(b.groupName, undefined, {
+            sensitivity: "base",
+          });
+          break;
+        case "room":
+        case "className":
+          primary = a.className.localeCompare(b.className, undefined, {
+            sensitivity: "base",
+          });
+          break;
+        case "status":
+          primary = computeBookingStatusLabel(a, now).localeCompare(
+            computeBookingStatusLabel(b, now),
+            undefined,
+            { sensitivity: "base" },
+          );
+          break;
+        case "createdAt":
+          primary = (a.createdAt ?? "").localeCompare(b.createdAt ?? "");
+          break;
+        default:
+          primary = 0;
+      }
+      return primary * order;
+    });
+  } else {
+    bookings.sort((a, b) => {
+      const dateComparison = a.date.localeCompare(b.date);
+      if (dateComparison !== 0) return dateComparison;
+      return a.startTime.localeCompare(b.startTime);
     });
   }
 
@@ -241,4 +402,70 @@ export async function createRecurringBookings(
 
   await writeData(bookings);
   return recurringBookings;
+}
+
+export interface RangeBookingConflict {
+  date: string;
+  message: string;
+}
+
+export interface RangeBookingResult {
+  created: Booking[];
+  conflicts: RangeBookingConflict[];
+  seriesId: string;
+}
+
+export async function createRangeBookings(
+  booking: Omit<Booking, "id" | "createdAt" | "date">,
+  startDate: string,
+  endDate: string
+): Promise<RangeBookingResult> {
+  const bookings = await readData();
+  const created: Booking[] = [];
+  const conflicts: RangeBookingConflict[] = [];
+  const seriesId = uuidv4();
+
+  const start = new Date(`${startDate}T00:00:00`);
+  const end = new Date(`${endDate}T00:00:00`);
+
+  if (start > end) {
+    throw new Error("startDate must be on or before endDate");
+  }
+
+  const cursor = new Date(start);
+  while (cursor <= end) {
+    const dateStr = format(cursor, "yyyy-MM-dd");
+    const hasConflict = await checkBookingConflicts({
+      date: dateStr,
+      startTime: booking.startTime,
+      endTime: booking.endTime,
+      className: booking.className,
+    });
+
+    if (hasConflict) {
+      conflicts.push({
+        date: dateStr,
+        message: "This room is already booked during this time",
+      });
+    } else {
+      const newBooking: Booking = {
+        id: uuidv4(),
+        ...booking,
+        date: dateStr,
+        seriesId,
+        createdAt: new Date().toISOString(),
+        status: booking.status || "confirmed",
+      };
+      created.push(newBooking);
+      bookings.unshift(newBooking);
+    }
+
+    cursor.setDate(cursor.getDate() + 1);
+  }
+
+  if (created.length > 0) {
+    await writeData(bookings);
+  }
+
+  return { created, conflicts, seriesId };
 }

@@ -5,18 +5,8 @@ import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
-
-interface Booking {
-  id: string
-  date: string
-  startTime: string
-  endTime: string
-  groupName: string
-  className: string
-  bookedBy: string
-  bookedByEmail?: string
-  purpose: string
-}
+import { getRoomBadgeColor } from "@/lib/rooms"
+import type { Booking } from "@/lib/booking-types"
 
 interface BookingDetailsDialogProps {
   open: boolean
@@ -47,37 +37,24 @@ export function BookingDetailsDialog({ open, onOpenChange, booking }: BookingDet
     }
   }
 
-  const getClassBadgeColor = (className: string) => {
-    const classColors: Record<string, string> = {
-      BTB: "bg-purple-100 text-purple-800",
-      SR: "bg-emerald-100 text-emerald-800",
-      PP: "bg-indigo-100 text-indigo-800",
-      KPS: "bg-amber-100 text-amber-800",
-      PVH: "bg-rose-100 text-rose-800",
-      Seminar: "bg-cyan-100 text-cyan-800",
-      "Koh Kong": "bg-red-100 text-red-800",
-      "Director Room": "bg-slate-100 text-slate-800",
-      "Deputy Director Room": "bg-orange-100 text-orange-800",
-    }
-    return classColors[className] || "bg-muted text-muted-foreground"
-  }
+  const getClassBadgeColor = getRoomBadgeColor
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px] p-0 overflow-hidden rounded-lg">
+      <DialogContent className="gap-0 overflow-hidden rounded-lg p-0 sm:max-w-[720px]">
         <div className="bg-gradient-to-r from-primary to-[#003d6b] p-6 text-primary-foreground">
           <DialogHeader>
             <div className="flex items-center justify-between">
               <div>
                 <DialogTitle className="text-2xl font-bold">Booking Details</DialogTitle>
-                <DialogDescription className="text-primary-foreground/85 mt-1">
+                <DialogDescription className="mt-1 text-primary-foreground/85">
                   Complete information about this room reservation
                 </DialogDescription>
               </div>
               <Button
                 variant="ghost"
                 size="icon"
-                className="text-primary-foreground hover:bg-primary-foreground/15 rounded-full"
+                className="rounded-full text-primary-foreground hover:bg-primary-foreground/15"
                 onClick={() => onOpenChange(false)}
               >
                 <X className="h-5 w-5" />
@@ -86,99 +63,101 @@ export function BookingDetailsDialog({ open, onOpenChange, booking }: BookingDet
           </DialogHeader>
         </div>
 
-        <div className="p-6 space-y-6">
+        <div className="grid gap-6 p-6 sm:grid-cols-2">
           {/* Date and Time Section */}
           <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-foreground flex items-center">
-              <CalendarIcon className="h-5 w-5 mr-2 text-primary/75" />
+            <h3 className="flex items-center text-lg font-semibold text-foreground">
+              <CalendarIcon className="mr-2 h-5 w-5 text-primary/75" />
               Date & Time
             </h3>
-            <div className="bg-muted rounded-lg p-4 space-y-3">
-              <div className="flex items-center justify-between">
+            <div className="space-y-3 rounded-lg bg-muted p-4">
+              <div className="flex items-center justify-between gap-3">
                 <span className="text-sm font-medium text-muted-foreground">Date:</span>
-                <span className="text-sm font-semibold text-foreground tabular-nums">{formatDate(booking.date)}</span>
+                <span className="text-right text-sm font-semibold text-foreground tabular-nums">
+                  {formatDate(booking.date)}
+                </span>
               </div>
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-3">
                 <span className="text-sm font-medium text-muted-foreground">Start Time:</span>
-                <span className="text-sm font-semibold text-foreground tabular-nums">{formatTime(booking.startTime)}</span>
+                <span className="text-sm font-semibold text-foreground tabular-nums">
+                  {formatTime(booking.startTime)}
+                </span>
               </div>
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-3">
                 <span className="text-sm font-medium text-muted-foreground">End Time:</span>
-                <span className="text-sm font-semibold text-foreground tabular-nums">{formatTime(booking.endTime)}</span>
+                <span className="text-sm font-semibold text-foreground tabular-nums">
+                  {formatTime(booking.endTime)}
+                </span>
               </div>
             </div>
           </div>
 
-          <Separator />
-
           {/* Room and Group Section */}
           <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-foreground flex items-center">
-              <Building2 className="h-5 w-5 mr-2 text-primary/75" />
+            <h3 className="flex items-center text-lg font-semibold text-foreground">
+              <Building2 className="mr-2 h-5 w-5 text-primary/75" />
               Room & Group
             </h3>
-            <div className="bg-muted rounded-lg p-4 space-y-3">
-              <div className="flex items-center justify-between">
+            <div className="space-y-3 rounded-lg bg-muted p-4">
+              <div className="flex items-center justify-between gap-3">
                 <span className="text-sm font-medium text-muted-foreground">Room:</span>
                 <Badge variant="outline" className={getClassBadgeColor(booking.className)}>
                   {booking.className}
                 </Badge>
               </div>
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-3">
                 <span className="text-sm font-medium text-muted-foreground">Group Name:</span>
-                <span className="text-sm font-semibold text-foreground">{booking.groupName}</span>
+                <span className="text-right text-sm font-semibold text-foreground">
+                  {booking.groupName}
+                </span>
               </div>
             </div>
           </div>
 
-          <Separator />
-
           {/* Purpose Section */}
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-foreground flex items-center">
-              <FileText className="h-5 w-5 mr-2 text-primary/75" />
+          <div className="space-y-4 sm:col-span-2">
+            <h3 className="flex items-center text-lg font-semibold text-foreground">
+              <FileText className="mr-2 h-5 w-5 text-primary/75" />
               Purpose
             </h3>
-            <div className="bg-muted rounded-lg p-4">
-              <p
-                className="text-sm text-foreground/90 leading-relaxed break-all whitespace-pre-wrap word-break-break-all overflow-hidden"
-                style={{
-                  wordBreak: "break-all",
-                  overflowWrap: "anywhere",
-                  whiteSpace: "pre-wrap",
-                  maxWidth: "100%",
-                }}
-              >
+            <div className="rounded-lg bg-muted p-4">
+              <p className="overflow-hidden text-sm leading-relaxed break-words whitespace-pre-wrap text-foreground/90 [overflow-wrap:anywhere]">
                 {booking.purpose || "No purpose specified"}
               </p>
             </div>
           </div>
 
-          <Separator />
+          <Separator className="sm:col-span-2" />
 
           {/* Booking Information */}
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-foreground flex items-center">
-              <PersonStandingIcon className="h-5 w-5 mr-2 text-primary/75" />
+          <div className="space-y-4 sm:col-span-2">
+            <h3 className="flex items-center text-lg font-semibold text-foreground">
+              <PersonStandingIcon className="mr-2 h-5 w-5 text-primary/75" />
               Booking Information
             </h3>
-            <div className="bg-muted rounded-lg p-4 space-y-3">
-              <div className="flex items-center justify-between gap-2">
+            <div className="grid gap-3 rounded-lg bg-muted p-4 sm:grid-cols-2">
+              <div className="flex items-center justify-between gap-3 sm:flex-col sm:items-start">
                 <span className="text-sm font-medium text-muted-foreground">Booked By:</span>
-                <span className="text-sm font-semibold text-foreground text-right">{booking.bookedBy || "N/A"}</span>
+                <span className="text-sm font-semibold text-foreground">
+                  {booking.bookedBy || "N/A"}
+                </span>
               </div>
               {booking.bookedByEmail ? (
-                <div className="flex items-start justify-between gap-2">
-                  <span className="text-sm font-medium text-muted-foreground flex items-center gap-1">
+                <div className="flex items-start justify-between gap-3 sm:flex-col sm:items-start">
+                  <span className="flex items-center gap-1 text-sm font-medium text-muted-foreground">
                     <Mail className="h-3.5 w-3.5 shrink-0" />
                     Email:
                   </span>
-                  <span className="text-sm font-medium text-foreground break-all text-right">{booking.bookedByEmail}</span>
+                  <span className="break-all text-sm font-medium text-foreground">
+                    {booking.bookedByEmail}
+                  </span>
                 </div>
               ) : null}
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-3 sm:col-span-2 sm:flex-col sm:items-start">
                 <span className="text-sm font-medium text-muted-foreground">Booking ID:</span>
-                <span className="text-xs font-mono text-muted-foreground bg-background px-2 py-1 rounded-md border border-border tabular-nums">{booking.id}</span>
+                <span className="rounded-md border border-border bg-background px-2 py-1 font-mono text-xs text-muted-foreground tabular-nums">
+                  {booking.id}
+                </span>
               </div>
             </div>
           </div>

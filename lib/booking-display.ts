@@ -7,7 +7,7 @@ export interface BookingDisplayModel {
   endTime: string;
   groupName: string;
   className: string;
-  bookedBy: string;
+  bookedBy?: string;
   bookedByEmail?: string;
   purpose: string;
 }
@@ -15,15 +15,7 @@ export interface BookingDisplayModel {
 export type ColumnKey = "date" | "time" | "group" | "room" | "status";
 
 /** Room values aligned with booking form / API. */
-export const TABLE_ROOM_OPTIONS = [
-  "BTB",
-  "SR",
-  "PP",
-  "KPS",
-  "PVH",
-  "Seminar",
-  "Koh Kong",
-] as const;
+export { ROOM_OPTIONS as TABLE_ROOM_OPTIONS } from "@/lib/rooms";
 
 /** Status labels must match `getBookingStatus` in the app. */
 export const TABLE_STATUS_OPTIONS = [

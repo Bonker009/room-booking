@@ -14,6 +14,11 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { Calendar } from "@/components/ui/calendar";
 import { DateRangePickerInline } from "@/components/date-range-picker";
 import { Input } from "@/components/ui/input";
@@ -142,24 +147,29 @@ function ColumnFilterControl({
 
   return (
     <Popover>
-      <PopoverTrigger asChild>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className={cn(
-            "relative h-7 w-7 shrink-0",
-            active && "text-primary",
-          )}
-          aria-label={`Filter ${col}`}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <ListFilter className="h-3.5 w-3.5" />
-          {active && (
-            <span className="bg-primary absolute top-1 right-1 h-1.5 w-1.5 rounded-full" />
-          )}
-        </Button>
-      </PopoverTrigger>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <PopoverTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className={cn(
+                "relative h-7 w-7 shrink-0",
+                active && "text-primary",
+              )}
+              aria-label={`Filter ${col}`}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <ListFilter className="h-3.5 w-3.5" />
+              {active && (
+                <span className="bg-primary absolute top-1 right-1 h-1.5 w-1.5 rounded-full" />
+              )}
+            </Button>
+          </PopoverTrigger>
+        </TooltipTrigger>
+        <TooltipContent>Filter {col}</TooltipContent>
+      </Tooltip>
       <PopoverContent
         className={cn(
           "max-h-[min(480px,70vh)] overflow-y-auto p-3",
@@ -558,12 +568,15 @@ export function BookingsTable({
   displayedBookings,
   sortFilter,
   emptyState,
+  rowOffset = 0,
   ...shared
 }: {
   displayedBookings: BookingDisplayModel[];
   sortFilter: SortFilterProps;
   /** Shown in the table body when there are no rows (headers stay visible). */
   emptyState?: ReactNode;
+  /** Zero-based offset for row numbers (pagination). */
+  rowOffset?: number;
 } & SharedProps) {
   const {
     formatDate,
@@ -619,7 +632,7 @@ export function BookingsTable({
                   className="hover:bg-muted/80 transition-colors duration-200"
                 >
                   <td className="text-muted-foreground px-3 py-4 text-sm tabular-nums">
-                    {index + 1}
+                    {rowOffset + index + 1}
                   </td>
                   <td className="px-4 py-4 whitespace-nowrap">
                     <div className="flex items-center">
@@ -661,37 +674,52 @@ export function BookingsTable({
                   </td>
                   <td className="px-4 py-4 whitespace-nowrap">
                     <div className="flex space-x-2">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="text-primary/75 hover:text-primary hover:bg-muted"
-                        onClick={() => onViewDetails(booking)}
-                        title="View Details"
-                      >
-                        <Eye className="h-4 w-4" />
-                      </Button>
-                      {canManage ? (
-                        <>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
                           <Button
                             variant="ghost"
                             size="icon"
                             className="text-primary/75 hover:text-primary hover:bg-muted"
-                            onClick={() => onEdit(booking)}
-                            title="Edit Booking"
+                            onClick={() => onViewDetails(booking)}
+                            aria-label="View details"
                           >
-                            <Edit className="h-4 w-4" />
+                            <Eye className="h-4 w-4" />
                           </Button>
-                          <AlertDialog>
-                            <AlertDialogTrigger asChild>
+                        </TooltipTrigger>
+                        <TooltipContent>View details</TooltipContent>
+                      </Tooltip>
+                      {canManage ? (
+                        <>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                                title="Delete Booking"
+                                className="text-primary/75 hover:text-primary hover:bg-muted"
+                                onClick={() => onEdit(booking)}
+                                aria-label="Edit booking"
                               >
-                                <Trash2 className="h-4 w-4" />
+                                <Edit className="h-4 w-4" />
                               </Button>
-                            </AlertDialogTrigger>
+                            </TooltipTrigger>
+                            <TooltipContent>Edit booking</TooltipContent>
+                          </Tooltip>
+                          <AlertDialog>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <AlertDialogTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                                    aria-label="Delete booking"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </AlertDialogTrigger>
+                              </TooltipTrigger>
+                              <TooltipContent>Delete booking</TooltipContent>
+                            </Tooltip>
                             <AlertDialogContent>
                               <AlertDialogHeader>
                                 <AlertDialogTitle>

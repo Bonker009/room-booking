@@ -8,6 +8,8 @@ Internal **room booking** dashboard: browse, create, edit, and delete reservatio
 - **Better Auth** + **better-sqlite3** (`data/auth.db`)
 - **Keycloak** at `keycloak.kshrd.app` via the Generic OAuth plugin (`providerId`: `keycloak`)
 - Bookings persisted in **`data/bookings.json`** (`lib/db.ts`)
+- **Calendar views** (month, week, day, year, agenda) via vendored `calendar/` module ([big-calendar](https://github.com/lramos33/big-calendar)), with drag-and-drop reschedule
+- **Multi-day bookings**: one JSON record per day, linked by optional `seriesId`
 
 ## Prerequisites
 
@@ -84,11 +86,19 @@ In the Keycloak admin console, for the client used by this app:
 
 All booking endpoints require an authenticated session (cookie).
 
-- `GET /api/bookings` — list (optional query params for filters/pagination).
-- `POST /api/bookings` — create (validates fields; checks room/time conflicts).
+- `GET /api/bookings` — list with optional query params. With any filter param, returns `{ bookings, total, page, limit, totalPages }`. Without params, returns a plain array (legacy).
+  - **Date range (calendar):** `startDate`, `endDate` (ISO `yyyy-MM-dd`)
+  - **Table search:** `search` (free text), `tab` (`today|upcoming|past|all`), `roomExact`, `startDate`/`endDate` (toolbar range)
+  - **Column filters:** `dateFrom`, `dateTo`, `startTimeFrom`, `endTimeBy`, `groupFilter`, `statusLabel`
+  - **Sort/pagination:** `sortBy` (`date|time|group|room|status|createdAt|className`), `sortOrder`, `page`, `limit`
+- `GET /api/bookings/availability` — per-room free/busy for a slot: `date`, `startTime`, `endTime`, optional `excludeId` (edit mode).
+- `POST /api/bookings` — create single-day booking (validates fields; checks room/time conflicts).
+- `POST /api/bookings/bulk` — create a **date-range** booking (same room/time each day; one record per day; returns created + conflict summary; HTTP 207 on partial success).
 - `GET/PUT/DELETE /api/bookings/[id]` — read, update, delete.
 
-Implementation: `app/api/bookings/**/*.ts`, storage `lib/db.ts`.
+**Rooms** are defined in `lib/rooms.ts`. The dashboard defaults to the **Calendar** view (fetches only the visible date range); switch to **Table** for server-driven search, filters, sort, and pagination.
+
+Implementation: `app/api/bookings/**/*.ts`, storage `lib/db.ts`, calendar mapping `lib/calendar-mapping.ts`.
 
 ## Docker
 

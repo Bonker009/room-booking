@@ -2,7 +2,7 @@
 import type React from "react"
 import { useState, useEffect } from "react"
 import { format } from "date-fns"
-import { CalendarIcon, Clock, Users, Building2, PersonStandingIcon, FileText, Mail } from "lucide-react"
+import { CalendarIcon, Users, Building2, PersonStandingIcon, FileText, CheckCircle2, XCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -18,36 +18,38 @@ import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
+import { TimeField } from "@/components/ui/time-field"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
+import { DateRangePicker, type DateRangeValue } from "@/components/date-range-picker"
+import { ROOM_OPTIONS } from "@/lib/rooms"
 import { authClient } from "@/lib/auth-client"
+import type { Booking } from "@/lib/booking-types"
+import { useRoomAvailability } from "@/hooks/use-room-availability"
+import { Badge } from "@/components/ui/badge"
 
 interface BookingDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onSubmit: (bookingData: BookingFormData) => Promise<void>
-  existingBookings: Booking[]
   editingBooking?: Booking | null
+  prefill?: {
+    date?: Date
+    startTime?: string
+    endTime?: string
+  } | null
 }
 
-interface BookingFormData {
+export type BookingMode = "single" | "range"
+
+export interface BookingFormData {
+  mode: BookingMode
   date: Date | undefined
+  dateRange?: DateRangeValue
   startTime: string
   endTime: string
   groupName: string
   className: string
-  purpose: string
-}
-
-interface Booking {
-  id: string
-  date: string
-  startTime: string
-  endTime: string
-  groupName: string
-  className: string
-  bookedBy: string
-  bookedByEmail?: string
   purpose: string
 }
 
@@ -55,11 +57,13 @@ export function BookingDialog({
   open,
   onOpenChange,
   onSubmit,
-  existingBookings,
   editingBooking = null,
+  prefill = null,
 }: BookingDialogProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [bookingMode, setBookingMode] = useState<BookingMode>("single")
   const [date, setDate] = useState<Date | undefined>(undefined)
+  const [dateRange, setDateRange] = useState<DateRangeValue | undefined>(undefined)
   const [startTime, setStartTime] = useState("")
   const [endTime, setEndTime] = useState("")
   const [groupName, setGroupName] = useState("")
@@ -70,23 +74,48 @@ export function BookingDialog({
     session?.user?.name?.trim() ||
     session?.user?.email?.split("@")[0]?.trim() ||
     ""
-  const actorEmail = session?.user?.email?.trim() ?? ""
   const [errors, setErrors] = useState<Record<string, string>>({})
 
-  // Populate form when editing
+  const {
+    availableRooms,
+    selectedRoomAvailable,
+    rangeConflictDays,
+    isLoading: availabilityLoading,
+  } = useRoomAvailability({
+    open,
+    bookingMode,
+    date,
+    dateRange,
+    startTime,
+    endTime,
+    room,
+    excludeId: editingBooking?.id,
+  })
+
   useEffect(() => {
     if (editingBooking) {
+      setBookingMode("single")
       setDate(new Date(editingBooking.date))
+      setDateRange(undefined)
       setStartTime(editingBooking.startTime)
       setEndTime(editingBooking.endTime)
       setGroupName(editingBooking.groupName)
       setRoom(editingBooking.className)
       setPurpose(editingBooking.purpose || "")
+    } else if (prefill) {
+      setBookingMode("single")
+      setDate(prefill.date ?? new Date())
+      setDateRange(undefined)
+      setStartTime(prefill.startTime ?? "")
+      setEndTime(prefill.endTime ?? "")
+      setGroupName("")
+      setRoom("")
+      setPurpose("")
     } else {
-      // Set default values for new booking
       const now = new Date()
+      setBookingMode("single")
       setDate(now)
-      // Default to next hour, rounded to nearest 30 min
+      setDateRange(undefined)
       const hours = now.getHours()
       const minutes = now.getMinutes() >= 30 ? 0 : 30
       const nextHour = minutes === 0 ? hours + 1 : hours
@@ -96,65 +125,39 @@ export function BookingDialog({
       setRoom("")
       setPurpose("")
     }
-  }, [editingBooking, open])
+  }, [editingBooking, open, prefill])
 
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {}
-    if (!date) newErrors.date = "Please select a date"
+    if (bookingMode === "single") {
+      if (!date) newErrors.date = "Please select a date"
+    } else if (!dateRange?.from || !dateRange?.to) {
+      newErrors.dateRange = "Please select a start and end date"
+    } else if (dateRange.from > dateRange.to) {
+      newErrors.dateRange = "End date must be on or after start date"
+    }
     if (!startTime) newErrors.startTime = "Please select a start time"
     if (!endTime) newErrors.endTime = "Please select an end time"
     if (!groupName.trim()) newErrors.groupName = "Please enter a group name"
     if (!room) newErrors.room = "Please select a room"
     if (!purpose.trim()) newErrors.purpose = "Please enter the purpose of booking"
 
-    // Validate time format and logic
     if (startTime && endTime) {
       if (startTime >= endTime) {
         newErrors.endTime = "End time must be after start time"
       }
     }
 
-    // Check for booking conflicts
-    if (date && startTime && endTime && room && !newErrors.endTime) {
-      const hasConflict = checkBookingConflicts({
-        date: date,
-        startTime,
-        endTime,
-        groupName,
-        className: room,
-      })
-      if (hasConflict) {
+    if (!newErrors.endTime && room && startTime && endTime && startTime < endTime) {
+      if (bookingMode === "single" && selectedRoomAvailable === false) {
         newErrors.conflict = "This room is already booked during this time"
+      } else if (bookingMode === "range" && rangeConflictDays.length > 0) {
+        newErrors.conflict = `Room conflicts on ${rangeConflictDays.length} day(s) in this range`
       }
     }
 
     setErrors(newErrors)
     return Object.keys(newErrors).length === 0
-  }
-
-  const checkBookingConflicts = (booking: any): boolean => {
-    // Skip checking against the booking we're currently editing
-    const bookingsToCheck = editingBooking
-      ? existingBookings.filter((b) => b.id !== editingBooking.id)
-      : existingBookings
-
-    // Convert form date to string format for comparison
-    const bookingDateStr = format(booking.date, "yyyy-MM-dd")
-
-    for (const existingBooking of bookingsToCheck) {
-      // Only check bookings for the same room and date
-      if (existingBooking.className === booking.className && existingBooking.date === bookingDateStr) {
-        // Check for time overlap
-        if (
-          (booking.startTime >= existingBooking.startTime && booking.startTime < existingBooking.endTime) ||
-          (booking.endTime > existingBooking.startTime && booking.endTime <= existingBooking.endTime) ||
-          (booking.startTime <= existingBooking.startTime && booking.endTime >= existingBooking.endTime)
-        ) {
-          return true // Conflict found
-        }
-      }
-    }
-    return false // No conflicts
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -164,7 +167,9 @@ export function BookingDialog({
     setIsSubmitting(true)
     try {
       await onSubmit({
+        mode: bookingMode,
         date,
+        dateRange: bookingMode === "range" ? dateRange : undefined,
         startTime,
         endTime,
         groupName,
@@ -190,36 +195,15 @@ export function BookingDialog({
     }
   }
 
-  const timeOptions = Array.from({ length: 24 * 2 }, (_, i) => {
-    const hour = Math.floor(i / 2)
-    const minute = (i % 2) * 30
-    const formattedHour = hour.toString().padStart(2, "0")
-    const formattedMinute = minute.toString().padStart(2, "0")
-    const time = `${formattedHour}:${formattedMinute}`
-    // Format for display (12-hour format)
-    const hour12 = hour % 12 || 12
-    const ampm = hour >= 12 ? "PM" : "AM"
-    const displayTime = `${hour12}:${formattedMinute} ${ampm}`
-    return { value: time, label: displayTime }
-  })
-
-  const formatTimeForDisplay = (time: string) => {
-    if (!time) return ""
-    const [hours, minutes] = time.split(":").map(Number)
-    const hour12 = hours % 12 || 12
-    const ampm = hours >= 12 ? "PM" : "AM"
-    return `${hour12}:${minutes.toString().padStart(2, "0")} ${ampm}`
-  }
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="flex max-h-[90vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-[640px]">
-        <div className="bg-gradient-to-r from-primary to-[#003d6b] p-6 text-primary-foreground">
-          <DialogHeader>
-            <DialogTitle className="text-2xl font-bold">
+        <div className="bg-gradient-to-r from-primary to-[#003d6b] px-5 py-3 text-primary-foreground">
+          <DialogHeader className="gap-1">
+            <DialogTitle className="text-xl font-bold leading-tight">
               {editingBooking ? "Edit Booking" : "Create New Booking"}
             </DialogTitle>
-            <DialogDescription className="text-primary-foreground/85 mt-1">
+            <DialogDescription className="text-sm leading-snug text-primary-foreground/85">
               {editingBooking
                 ? "Update the details of your room reservation"
                 : "Fill in the details to book a room for your event"}
@@ -232,41 +216,78 @@ export function BookingDialog({
         >
           <div className="min-h-0 flex-1 overflow-y-auto p-6">
             <div className="grid grid-cols-1 gap-x-4 gap-y-4 sm:grid-cols-2">
-              {/* Date + Room */}
-              <div className="space-y-2">
-                <Label htmlFor="date" className="text-sm font-medium">
-                  Date
-                </Label>
-                <Popover>
-                  <PopoverTrigger asChild>
+              {!editingBooking && (
+                <div className="space-y-2 sm:col-span-2">
+                  <Label className="text-sm font-medium">Booking type</Label>
+                  <div className="flex gap-2">
                     <Button
-                      variant="outline"
-                      className={cn(
-                        "w-full justify-start text-left font-normal",
-                        !date && "text-muted-foreground",
-                        errors.date ? "border-destructive" : "border-input",
-                      )}
+                      type="button"
+                      variant={bookingMode === "single" ? "default" : "outline"}
+                      onClick={() => setBookingMode("single")}
                     >
-                      <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
-                      <span className="truncate">
-                        {date ? format(date, "PPP") : "Select a date"}
-                      </span>
+                      Single day
                     </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar
-                      mode="single"
-                      selected={date}
-                      onSelect={setDate}
-                      initialFocus
-                      disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
-                    />
-                  </PopoverContent>
-                </Popover>
-                {errors.date && <p className="text-sm text-destructive">{errors.date}</p>}
-              </div>
+                    <Button
+                      type="button"
+                      variant={bookingMode === "range" ? "default" : "outline"}
+                      onClick={() => setBookingMode("range")}
+                    >
+                      Date range
+                    </Button>
+                  </div>
+                </div>
+              )}
 
-              <div className="space-y-2">
+              {bookingMode === "single" ? (
+                <div className="space-y-2 sm:col-span-2">
+                  <Label htmlFor="date" className="text-sm font-medium">
+                    Date
+                  </Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "w-full justify-start text-left font-normal",
+                          !date && "text-muted-foreground",
+                          errors.date ? "border-destructive" : "border-input",
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
+                        <span className="truncate">
+                          {date ? format(date, "PPP") : "Select a date"}
+                        </span>
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={date}
+                        onSelect={setDate}
+                        initialFocus
+                        disabled={(d) => d < new Date(new Date().setHours(0, 0, 0, 0))}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                  {errors.date && <p className="text-sm text-destructive">{errors.date}</p>}
+                </div>
+              ) : (
+                <div className="space-y-2 sm:col-span-2">
+                  <DateRangePicker
+                    date={dateRange}
+                    onDateChange={setDateRange}
+                    label="Date range"
+                    placeholder="Select start and end dates"
+                    buttonClassName="w-full"
+                  />
+                  {errors.dateRange && (
+                    <p className="text-sm text-destructive">{errors.dateRange}</p>
+                  )}
+                </div>
+              )}
+
+              {/* Room */}
+              <div className="space-y-2 sm:col-span-2">
                 <Label htmlFor="room" className="text-sm font-medium">
                   Room
                 </Label>
@@ -281,16 +302,48 @@ export function BookingDialog({
                     </div>
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="BTB">BTB</SelectItem>
-                    <SelectItem value="SR">SR</SelectItem>
-                    <SelectItem value="PP">PP</SelectItem>
-                    <SelectItem value="KPS">KPS</SelectItem>
-                    <SelectItem value="PVH">PVH</SelectItem>
-                    <SelectItem value="Seminar">Seminar</SelectItem>
-                    <SelectItem value="Koh Kong">Koh Kong</SelectItem>
+                    {ROOM_OPTIONS.map((roomOption) => (
+                      <SelectItem key={roomOption} value={roomOption}>
+                        {roomOption}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
                 {errors.room && <p className="text-sm text-destructive">{errors.room}</p>}
+                {room && startTime && endTime && startTime < endTime && (
+                  <div className="mt-1 flex items-center gap-1.5 text-sm">
+                    {availabilityLoading ? (
+                      <span className="text-muted-foreground">Checking availability…</span>
+                    ) : selectedRoomAvailable === true ? (
+                      <>
+                        <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                        <span className="text-emerald-700 dark:text-emerald-400">{room} is available</span>
+                      </>
+                    ) : selectedRoomAvailable === false ? (
+                      <>
+                        <XCircle className="h-4 w-4 text-destructive" />
+                        <span className="text-destructive">{room} is busy for this time</span>
+                      </>
+                    ) : null}
+                  </div>
+                )}
+                {availableRooms.length > 0 && startTime && endTime && (
+                  <div className="mt-2 space-y-1.5">
+                    <p className="text-xs font-medium text-muted-foreground">Available rooms</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {availableRooms.map((roomName) => (
+                        <Badge
+                          key={roomName}
+                          variant={room === roomName ? "default" : "secondary"}
+                          className="cursor-pointer"
+                          onClick={() => setRoom(roomName)}
+                        >
+                          {roomName}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Start / End time */}
@@ -298,26 +351,12 @@ export function BookingDialog({
                 <Label htmlFor="startTime" className="text-sm font-medium">
                   Start Time
                 </Label>
-                <Select value={startTime} onValueChange={setStartTime}>
-                  <SelectTrigger
-                    id="startTime"
-                    className={cn(errors.startTime ? "border-destructive w-full" : "border-input w-full")}
-                  >
-                    <div className="flex items-center">
-                      <Clock className="mr-2 h-4 w-4 shrink-0 text-muted-foreground" />
-                      <SelectValue placeholder="Select time">
-                        {startTime ? formatTimeForDisplay(startTime) : "Select time"}
-                      </SelectValue>
-                    </div>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {timeOptions.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <TimeField
+                  id="startTime"
+                  value={startTime}
+                  onChange={setStartTime}
+                  hasError={Boolean(errors.startTime)}
+                />
                 {errors.startTime && <p className="text-sm text-destructive">{errors.startTime}</p>}
               </div>
 
@@ -325,26 +364,12 @@ export function BookingDialog({
                 <Label htmlFor="endTime" className="text-sm font-medium">
                   End Time
                 </Label>
-                <Select value={endTime} onValueChange={setEndTime}>
-                  <SelectTrigger
-                    id="endTime"
-                    className={cn(errors.endTime ? "border-destructive w-full" : "border-input w-full")}
-                  >
-                    <div className="flex items-center">
-                      <Clock className="mr-2 h-4 w-4 shrink-0 text-muted-foreground" />
-                      <SelectValue placeholder="Select time">
-                        {endTime ? formatTimeForDisplay(endTime) : "Select time"}
-                      </SelectValue>
-                    </div>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {timeOptions.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <TimeField
+                  id="endTime"
+                  value={endTime}
+                  onChange={setEndTime}
+                  hasError={Boolean(errors.endTime)}
+                />
                 {errors.endTime && <p className="text-sm text-destructive">{errors.endTime}</p>}
               </div>
 
@@ -372,22 +397,10 @@ export function BookingDialog({
                   {sessionPending ? (
                     <span className="text-muted-foreground">Loading account…</span>
                   ) : (
-                    <>
-                      <div className="flex items-center gap-2 font-medium text-foreground">
-                        <PersonStandingIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
-                        {actorName || "—"}
-                      </div>
-                      {actorEmail ? (
-                        <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
-                          <Mail className="h-3.5 w-3.5 shrink-0" />
-                          <span className="truncate">{actorEmail}</span>
-                        </div>
-                      ) : (
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          No email on profile — stored name may use your username only.
-                        </p>
-                      )}
-                    </>
+                    <div className="flex items-center gap-2 font-medium text-foreground">
+                      <PersonStandingIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
+                      {actorName || "—"}
+                    </div>
                   )}
                 </div>
               </div>

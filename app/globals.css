@@ -145,6 +145,14 @@
 
 /* Optional scrollbars — thin, muted */
 @layer utilities {
+  .bg-calendar-disabled-hour {
+    background: repeating-linear-gradient(
+      -60deg,
+      var(--border) 0 0.5px,
+      transparent 0.5px 8px
+    );
+  }
+
   .scrollbar-brand {
     scrollbar-width: thin;
     scrollbar-color: color-mix(in srgb, var(--foreground) 28%, transparent)
