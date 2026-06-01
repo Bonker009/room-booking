@@ -1,8 +1,10 @@
 FROM node:22-alpine AS base
+# Native build for better-sqlite3 (Better Auth)
+RUN apk add --no-cache libc6-compat python3 make g++
 
 FROM base AS deps
 WORKDIR /app
-COPY package.json package-lock.json* ./
+COPY package.json package-lock.json ./
 RUN npm ci
 
 FROM base AS builder
@@ -10,7 +12,12 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
+ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
+
+# Apply Better Auth schema to SQLite (creates/updates data/auth.db)
+RUN npx @better-auth/cli@latest migrate --config lib/auth.ts --yes
+
 FROM base AS runner
 WORKDIR /app
 
