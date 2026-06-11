@@ -104,77 +104,106 @@ export function BookingsPagination({
         </div>
 
         {totalPages > 1 && (
-          <div className="flex items-center gap-1">
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              className="h-8 w-8"
-              disabled={page <= 1}
-              onClick={() => onPageChange(1)}
-              aria-label="First page"
-            >
-              <ChevronsLeft className="h-4 w-4" />
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              className="h-8 w-8"
-              disabled={page <= 1}
-              onClick={() => onPageChange(page - 1)}
-              aria-label="Previous page"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
+          <>
+            <div className="flex items-center gap-2 sm:hidden">
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="h-8 w-8"
+                disabled={page <= 1}
+                onClick={() => onPageChange(page - 1)}
+                aria-label="Previous page"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <span className="min-w-[6rem] text-center text-sm text-muted-foreground tabular-nums">
+                Page {page} of {totalPages}
+              </span>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="h-8 w-8"
+                disabled={page >= totalPages}
+                onClick={() => onPageChange(page + 1)}
+                aria-label="Next page"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+            <div className="hidden items-center gap-1 sm:flex">
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="h-8 w-8"
+                disabled={page <= 1}
+                onClick={() => onPageChange(1)}
+                aria-label="First page"
+              >
+                <ChevronsLeft className="h-4 w-4" />
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="h-8 w-8"
+                disabled={page <= 1}
+                onClick={() => onPageChange(page - 1)}
+                aria-label="Previous page"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
 
-            {pageNumbers.map((pageNum, index) =>
-              pageNum === "ellipsis" ? (
-                <span
-                  key={`ellipsis-${index}`}
-                  className="px-1 text-sm text-muted-foreground"
-                >
-                  …
-                </span>
-              ) : (
-                <Button
-                  key={pageNum}
-                  type="button"
-                  variant={page === pageNum ? "default" : "outline"}
-                  size="icon"
-                  className="h-8 w-8"
-                  onClick={() => onPageChange(pageNum)}
-                  aria-label={`Page ${pageNum}`}
-                  aria-current={page === pageNum ? "page" : undefined}
-                >
-                  {pageNum}
-                </Button>
-              ),
-            )}
+              {pageNumbers.map((pageNum, index) =>
+                pageNum === "ellipsis" ? (
+                  <span
+                    key={`ellipsis-${index}`}
+                    className="px-1 text-sm text-muted-foreground"
+                  >
+                    …
+                  </span>
+                ) : (
+                  <Button
+                    key={pageNum}
+                    type="button"
+                    variant={page === pageNum ? "default" : "outline"}
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={() => onPageChange(pageNum)}
+                    aria-label={`Page ${pageNum}`}
+                    aria-current={page === pageNum ? "page" : undefined}
+                  >
+                    {pageNum}
+                  </Button>
+                ),
+              )}
 
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              className="h-8 w-8"
-              disabled={page >= totalPages}
-              onClick={() => onPageChange(page + 1)}
-              aria-label="Next page"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              className="h-8 w-8"
-              disabled={page >= totalPages}
-              onClick={() => onPageChange(totalPages)}
-              aria-label="Last page"
-            >
-              <ChevronsRight className="h-4 w-4" />
-            </Button>
-          </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="h-8 w-8"
+                disabled={page >= totalPages}
+                onClick={() => onPageChange(page + 1)}
+                aria-label="Next page"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="h-8 w-8"
+                disabled={page >= totalPages}
+                onClick={() => onPageChange(totalPages)}
+                aria-label="Last page"
+              >
+                <ChevronsRight className="h-4 w-4" />
+              </Button>
+            </div>
+          </>
         )}
       </div>
     </div>

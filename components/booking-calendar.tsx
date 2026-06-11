@@ -1,6 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+
+import { useIsMobile } from "@/hooks/use-media-query";
 
 import { CalendarProvider } from "@/calendar/contexts/calendar-context";
 import { ClientContainer } from "@/calendar/components/client-container";
@@ -35,7 +37,34 @@ export function BookingCalendar({
   onEditBooking,
   onVisibleRangeChange,
 }: BookingCalendarProps) {
-  const [calendarView, setCalendarView] = useState<TCalendarView>("month");
+  const isMobile = useIsMobile();
+  const desktopViewRef = useRef<TCalendarView>("month");
+  const [calendarView, setCalendarView] = useState<TCalendarView>(() =>
+    typeof window !== "undefined" &&
+    window.matchMedia("(max-width: 639px)").matches
+      ? "agenda"
+      : "month",
+  );
+
+  useEffect(() => {
+    if (isMobile) {
+      if (calendarView !== "day" && calendarView !== "agenda") {
+        setCalendarView("agenda");
+      }
+    } else if (calendarView === "agenda" && desktopViewRef.current !== "agenda") {
+      setCalendarView(desktopViewRef.current);
+    }
+  }, [isMobile, calendarView]);
+
+  const handleCalendarViewChange = (view: TCalendarView) => {
+    if (!isMobile) {
+      desktopViewRef.current = view;
+    } else if (view !== "day" && view !== "agenda") {
+      setCalendarView("agenda");
+      return;
+    }
+    setCalendarView(view);
+  };
 
   const events = useMemo(() => bookingsToEvents(bookings), [bookings]);
 
@@ -59,7 +88,7 @@ export function BookingCalendar({
       users={users}
       events={events}
       calendarView={calendarView}
-      onCalendarViewChange={setCalendarView}
+      onCalendarViewChange={handleCalendarViewChange}
       onEventUpdate={onEventUpdate}
       onAddBooking={onAddBooking}
       onViewBooking={onViewBooking}

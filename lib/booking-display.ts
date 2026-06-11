@@ -10,6 +10,7 @@ export interface BookingDisplayModel {
   bookedBy?: string;
   bookedByEmail?: string;
   purpose: string;
+  seriesId?: string;
 }
 
 export type ColumnKey = "date" | "time" | "group" | "room" | "status";

@@ -53,6 +53,7 @@ import {
   ArrowUpDown,
   CalendarIcon,
   Clock,
+  Copy,
   Edit,
   Eye,
   ListFilter,
@@ -72,7 +73,8 @@ interface SharedProps {
   getClassBadgeColor: (className: string) => string;
   onViewDetails: (booking: BookingDisplayModel) => void;
   onEdit: (booking: BookingDisplayModel) => void;
-  onDelete: (id: string) => void;
+  onDuplicate: (booking: BookingDisplayModel) => void;
+  onDelete: (booking: BookingDisplayModel, scope?: "single" | "series") => void;
   canManageBooking?: (booking: BookingDisplayModel) => boolean;
 }
 
@@ -171,10 +173,7 @@ function ColumnFilterControl({
         <TooltipContent>Filter {col}</TooltipContent>
       </Tooltip>
       <PopoverContent
-        className={cn(
-          "max-h-[min(480px,70vh)] overflow-y-auto p-3",
-          col === "date" ? "w-auto max-w-[calc(100vw-2rem)]" : "w-64",
-        )}
+        className="max-h-[min(480px,70vh)] w-auto max-w-[calc(100vw-2rem)] overflow-y-auto p-3 sm:w-64"
         align="start"
         onClick={(e) => e.stopPropagation()}
       >
@@ -564,6 +563,225 @@ function ColumnHeader({
   );
 }
 
+function BookingRowActions({
+  booking,
+  canManage,
+  onViewDetails,
+  onEdit,
+  onDuplicate,
+  onDelete,
+}: {
+  booking: BookingDisplayModel;
+  canManage: boolean;
+} & Pick<
+  SharedProps,
+  "onViewDetails" | "onEdit" | "onDuplicate" | "onDelete"
+>) {
+  return (
+    <div className="flex space-x-2">
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="text-primary/75 hover:text-primary hover:bg-muted"
+            onClick={() => onViewDetails(booking)}
+            aria-label="View details"
+          >
+            <Eye className="h-4 w-4" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>View details</TooltipContent>
+      </Tooltip>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="text-primary/75 hover:text-primary hover:bg-muted"
+            onClick={() => onDuplicate(booking)}
+            aria-label="Book again next week"
+          >
+            <Copy className="h-4 w-4" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>Book again (next week)</TooltipContent>
+      </Tooltip>
+      {canManage ? (
+        <>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="text-primary/75 hover:text-primary hover:bg-muted"
+                onClick={() => onEdit(booking)}
+                aria-label="Edit booking"
+              >
+                <Edit className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Edit booking</TooltipContent>
+          </Tooltip>
+          <AlertDialog>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                    aria-label="Delete booking"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </AlertDialogTrigger>
+              </TooltipTrigger>
+              <TooltipContent>Delete booking</TooltipContent>
+            </Tooltip>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete Booking</AlertDialogTitle>
+                <AlertDialogDescription>
+                  {booking.seriesId
+                    ? "This booking is part of a multi-day series. Delete this day only or the entire series?"
+                    : "Are you sure you want to delete this booking? This action cannot be undone."}
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter className="flex-col gap-2 sm:flex-row">
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                {booking.seriesId ? (
+                  <>
+                    <AlertDialogAction
+                      onClick={() => onDelete(booking, "single")}
+                      className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+                    >
+                      This day only
+                    </AlertDialogAction>
+                    <AlertDialogAction
+                      onClick={() => onDelete(booking, "series")}
+                      className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+                    >
+                      Entire series
+                    </AlertDialogAction>
+                  </>
+                ) : (
+                  <AlertDialogAction
+                    onClick={() => onDelete(booking, "single")}
+                    className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+                  >
+                    Delete
+                  </AlertDialogAction>
+                )}
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </>
+      ) : null}
+    </div>
+  );
+}
+
+function BookingsCardList({
+  displayedBookings,
+  emptyState,
+  rowOffset = 0,
+  ...shared
+}: {
+  displayedBookings: BookingDisplayModel[];
+  emptyState?: ReactNode;
+  rowOffset?: number;
+} & SharedProps) {
+  const {
+    formatDate,
+    formatTime,
+    getBookingStatus,
+    getClassBadgeColor,
+    onViewDetails,
+    onEdit,
+    onDuplicate,
+    onDelete,
+    canManageBooking,
+  } = shared;
+
+  if (displayedBookings.length === 0) {
+    return (
+      <div className="rounded-md border border-border px-4 py-12">
+        {emptyState ?? (
+          <p className="text-center text-sm text-muted-foreground">
+            No rows to display.
+          </p>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      {displayedBookings.map((booking, index) => {
+        const status = getBookingStatus(booking);
+        const canManage = canManageBooking?.(booking) ?? true;
+
+        return (
+          <div
+            key={booking.id}
+            className="overflow-hidden rounded-md border border-border bg-card shadow-sm"
+          >
+            <button
+              type="button"
+              className="w-full px-4 py-3 text-left transition-colors hover:bg-muted/50"
+              onClick={() => onViewDetails(booking)}
+            >
+              <div className="mb-2 flex items-start justify-between gap-2">
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-semibold text-foreground">
+                    {booking.groupName}
+                  </p>
+                  <p className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <CalendarIcon className="h-3.5 w-3.5 shrink-0" />
+                    {formatDate(booking.date)}
+                  </p>
+                </div>
+                <span className="text-muted-foreground shrink-0 text-xs tabular-nums">
+                  #{rowOffset + index + 1}
+                </span>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="flex items-center gap-1 text-xs tabular-nums text-muted-foreground">
+                  <Clock className="h-3.5 w-3.5 shrink-0" />
+                  {formatTime(booking.startTime)} – {formatTime(booking.endTime)}
+                </span>
+                <Badge
+                  variant="outline"
+                  className={getClassBadgeColor(booking.className)}
+                >
+                  {booking.className}
+                </Badge>
+                <Badge variant="outline" className={status.color}>
+                  {status.label}
+                </Badge>
+              </div>
+            </button>
+            <div
+              className="flex items-center justify-end border-t border-border bg-muted/30 px-3 py-2"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <BookingRowActions
+                booking={booking}
+                canManage={canManage}
+                onViewDetails={onViewDetails}
+                onEdit={onEdit}
+                onDuplicate={onDuplicate}
+                onDelete={onDelete}
+              />
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export function BookingsTable({
   displayedBookings,
   sortFilter,
@@ -585,12 +803,22 @@ export function BookingsTable({
     getClassBadgeColor,
     onViewDetails,
     onEdit,
+    onDuplicate,
     onDelete,
     canManageBooking,
   } = shared;
 
   return (
-    <div className="scrollbar-brand overflow-x-auto rounded-md border border-border">
+    <>
+      <div className="md:hidden">
+        <BookingsCardList
+          displayedBookings={displayedBookings}
+          emptyState={emptyState}
+          rowOffset={rowOffset}
+          {...shared}
+        />
+      </div>
+      <div className="scrollbar-brand hidden overflow-x-auto rounded-md border border-border md:block">
       <table className="min-w-full divide-y divide-border">
         <thead className="bg-muted">
           <tr>
@@ -673,77 +901,14 @@ export function BookingsTable({
                     </Badge>
                   </td>
                   <td className="px-4 py-4 whitespace-nowrap">
-                    <div className="flex space-x-2">
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="text-primary/75 hover:text-primary hover:bg-muted"
-                            onClick={() => onViewDetails(booking)}
-                            aria-label="View details"
-                          >
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>View details</TooltipContent>
-                      </Tooltip>
-                      {canManage ? (
-                        <>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="text-primary/75 hover:text-primary hover:bg-muted"
-                                onClick={() => onEdit(booking)}
-                                aria-label="Edit booking"
-                              >
-                                <Edit className="h-4 w-4" />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>Edit booking</TooltipContent>
-                          </Tooltip>
-                          <AlertDialog>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <AlertDialogTrigger asChild>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                                    aria-label="Delete booking"
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
-                                </AlertDialogTrigger>
-                              </TooltipTrigger>
-                              <TooltipContent>Delete booking</TooltipContent>
-                            </Tooltip>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>
-                                  Delete Booking
-                                </AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  Are you sure you want to delete this booking?
-                                  This action cannot be undone.
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction
-                                  onClick={() => onDelete(booking.id)}
-                                  className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
-                                >
-                                  Delete
-                                </AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
-                        </>
-                      ) : null}
-                    </div>
+                    <BookingRowActions
+                      booking={booking}
+                      canManage={canManage}
+                      onViewDetails={onViewDetails}
+                      onEdit={onEdit}
+                      onDuplicate={onDuplicate}
+                      onDelete={onDelete}
+                    />
                   </td>
                 </tr>
               );
@@ -751,6 +916,7 @@ export function BookingsTable({
           )}
         </tbody>
       </table>
-    </div>
+      </div>
+    </>
   );
 }

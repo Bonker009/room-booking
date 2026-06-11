@@ -1,14 +1,12 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
-import { Calendar, ListFilter } from "lucide-react";
+import { Calendar, LayoutGrid, ListFilter } from "lucide-react";
 
 import { BookingDialog, type BookingFormData } from "@/components/booking-dialog";
+import { BookingCreatedSuccessDialog } from "@/components/booking-created-success-dialog";
 import { BookingDetailsDialog } from "@/components/booking-details-dialog";
-import {
-  BookingCalendar,
-  type BookingCalendarSlotPrefill,
-} from "@/components/booking-calendar";
+import { BookingCalendar } from "@/components/booking-calendar";
 import { BookingsTable } from "@/components/booking-views";
 import { BookingTabs } from "@/components/dashboard/booking-tabs";
 import { BookingToolbar } from "@/components/dashboard/booking-toolbar";
@@ -16,6 +14,7 @@ import { BookingsPagination } from "@/components/dashboard/bookings-pagination";
 import { FilterSummary } from "@/components/dashboard/filter-summary";
 import { TableEmptyState } from "@/components/dashboard/table-empty-state";
 import { DashboardTopBar } from "@/components/dashboard/top-bar";
+import { RoomTimetable } from "@/components/room-timetable";
 import {
   Card,
   CardContent,
@@ -38,7 +37,12 @@ import {
   formatBookingTime,
   getBookingStatus,
 } from "@/lib/booking-status";
-import type { Booking, DashboardView } from "@/lib/booking-types";
+import type {
+  Booking,
+  BookingDialogPrefill,
+  DashboardView,
+} from "@/lib/booking-types";
+import { buildDuplicatePrefill } from "@/lib/duplicate-booking";
 import type { CalendarVisibleRange } from "@/lib/calendar-range";
 import { getRoomBadgeColor } from "@/lib/rooms";
 import { canManageBooking, sessionUserHasRole } from "@/lib/session-roles";
@@ -47,7 +51,7 @@ export default function Home() {
   const [calendarRange, setCalendarRange] = useState<CalendarVisibleRange | null>(
     null,
   );
-  const [dashboardView, setDashboardView] = useState<DashboardView>("calendar");
+  const [dashboardView, setDashboardView] = useState<DashboardView>("table");
 
   const {
     bookings: calendarBookings,
@@ -77,6 +81,8 @@ export default function Home() {
     handleEditSubmit,
     handleDelete,
     handleCalendarEventUpdate,
+    createSuccess,
+    dismissCreateSuccess,
   } = useBookingMutations({ onMutated: refetchActiveView });
 
   const { data: session } = authClient.useSession();
@@ -86,7 +92,7 @@ export default function Home() {
   const [openDetailsDialog, setOpenDetailsDialog] = useState(false);
   const [viewingBooking, setViewingBooking] = useState<Booking | null>(null);
   const [dialogPrefill, setDialogPrefill] =
-    useState<BookingCalendarSlotPrefill | null>(null);
+    useState<BookingDialogPrefill | null>(null);
   const [editingBooking, setEditingBooking] = useState<Booking | null>(null);
 
   const actorEmail = (session?.user?.email ?? "").trim().toLowerCase();
@@ -108,9 +114,25 @@ export default function Home() {
     [],
   );
 
-  const openCreateDialog = (prefill?: BookingCalendarSlotPrefill | null) => {
+  const openCreateDialog = (prefill?: BookingDialogPrefill | null) => {
     setDialogPrefill(prefill ?? null);
     setOpenDialog(true);
+  };
+
+  const handleDuplicate = (booking: Booking) => {
+    openCreateDialog(buildDuplicatePrefill(booking));
+  };
+
+  const handleDeleteBooking = (
+    booking: Booking,
+    scope: "single" | "series" = "single",
+  ) => {
+    void handleDelete(booking.id, scope);
+  };
+
+  const handleExportCsv = () => {
+    const qs = table.exportQueryString;
+    window.open(`/api/bookings/export${qs ? `?${qs}` : ""}`, "_blank");
   };
 
   const handleEdit = (booking: Booking) => {
@@ -166,14 +188,20 @@ export default function Home() {
                     setDashboardView(value as DashboardView)
                   }
                 >
-                  <TabsList>
-                    <TabsTrigger value="calendar">
-                      <Calendar className="mr-1 h-4 w-4" />
-                      Calendar
+                  <TabsList className="scrollbar-brand flex h-auto w-full max-w-full flex-nowrap items-stretch justify-start gap-0 overflow-x-auto">
+                    <TabsTrigger value="calendar" className="shrink-0">
+                      <Calendar className="mr-1 h-4 w-4 shrink-0" />
+                      <span className="hidden sm:inline">Calendar</span>
+                      <span className="sm:hidden">Cal</span>
                     </TabsTrigger>
-                    <TabsTrigger value="table">
-                      <ListFilter className="mr-1 h-4 w-4" />
+                    <TabsTrigger value="table" className="shrink-0">
+                      <ListFilter className="mr-1 h-4 w-4 shrink-0" />
                       Table
+                    </TabsTrigger>
+                    <TabsTrigger value="timetable" className="shrink-0">
+                      <LayoutGrid className="mr-1 h-4 w-4 shrink-0" />
+                      <span className="hidden sm:inline">Timetable</span>
+                      <span className="sm:hidden">Time</span>
                     </TabsTrigger>
                   </TabsList>
                 </Tabs>
@@ -181,7 +209,11 @@ export default function Home() {
             </CardHeader>
 
             <CardContent>
-              {dashboardView === "calendar" ? (
+              {dashboardView === "timetable" ? (
+                <RoomTimetable
+                  onBookingClick={(booking) => handleViewDetails(booking)}
+                />
+              ) : dashboardView === "calendar" ? (
                 <BookingCalendar
                   bookings={calendarLookupBookings}
                   onEventUpdate={handleCalendarEventUpdate}
@@ -212,6 +244,7 @@ export default function Home() {
                     onRoomFilterChange={table.setRoomFilter}
                     onClearAll={table.clearAllFilters}
                     showClearAll={table.hasToolbarFilters}
+                    onExportCsv={handleExportCsv}
                   />
                   <BookingTabs
                     activeTab={table.activeTab}
@@ -269,7 +302,8 @@ export default function Home() {
                         getClassBadgeColor={getRoomBadgeColor}
                         onViewDetails={handleViewDetails}
                         onEdit={handleEdit}
-                        onDelete={handleDelete}
+                        onDuplicate={handleDuplicate}
+                        onDelete={handleDeleteBooking}
                       />
                       <BookingsPagination
                         page={table.page}
@@ -310,6 +344,15 @@ export default function Home() {
           open={openDetailsDialog}
           onOpenChange={setOpenDetailsDialog}
           booking={viewingBooking}
+          onDuplicate={handleDuplicate}
+        />
+
+        <BookingCreatedSuccessDialog
+          open={createSuccess !== null}
+          onOpenChange={(open) => {
+            if (!open) dismissCreateSuccess();
+          }}
+          success={createSuccess}
         />
       </div>
     </TooltipProvider>

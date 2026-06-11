@@ -5,10 +5,16 @@ import { eachDayOfInterval, format } from "date-fns";
 
 import type { DateRangeValue } from "@/components/date-range-picker";
 import type { RoomAvailabilityItem } from "@/app/api/bookings/availability/route";
+import { ROOM_OPTIONS } from "@/lib/rooms";
+
+export type AggregatedRoomAvailability = RoomAvailabilityItem & {
+  /** ISO dates where this room is busy (range mode only). */
+  busyDays?: string[];
+};
 
 interface UseRoomAvailabilityParams {
   open: boolean;
-  bookingMode: "single" | "range";
+  bookingMode: "single" | "range" | "recurring";
   date?: Date;
   dateRange?: DateRangeValue;
   startTime: string;
@@ -27,13 +33,13 @@ export function useRoomAvailability({
   room,
   excludeId,
 }: UseRoomAvailabilityParams) {
-  const [rooms, setRooms] = useState<RoomAvailabilityItem[]>([]);
+  const [rooms, setRooms] = useState<AggregatedRoomAvailability[]>([]);
   const [rangeConflictDays, setRangeConflictDays] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fetchSingleDay = useCallback(
-    async (dateStr: string, targetRoom?: string) => {
+    async (dateStr: string) => {
       if (!startTime || !endTime || startTime >= endTime) return null;
 
       const params = new URLSearchParams({
@@ -61,10 +67,15 @@ export function useRoomAvailability({
 
     setIsLoading(true);
     try {
-      if (bookingMode === "single" && date) {
+      if ((bookingMode === "single" || bookingMode === "recurring") && date) {
         const dateStr = format(date, "yyyy-MM-dd");
         const data = await fetchSingleDay(dateStr);
-        setRooms(data?.rooms ?? []);
+        setRooms(
+          (data?.rooms ?? []).map((r) => ({
+            ...r,
+            busyDays: r.available ? [] : [dateStr],
+          })),
+        );
         setRangeConflictDays([]);
       } else if (
         bookingMode === "range" &&
@@ -75,23 +86,40 @@ export function useRoomAvailability({
           start: dateRange.from,
           end: dateRange.to,
         });
-        const conflicts: string[] = [];
-        let latestRooms: RoomAvailabilityItem[] = [];
+        const aggregated = new Map<string, AggregatedRoomAvailability>();
+        for (const roomName of ROOM_OPTIONS) {
+          aggregated.set(roomName, {
+            room: roomName,
+            available: true,
+            busyDays: [],
+          });
+        }
 
         for (const day of days) {
           const dateStr = format(day, "yyyy-MM-dd");
           const data = await fetchSingleDay(dateStr);
-          if (data?.rooms) {
-            latestRooms = data.rooms;
-            if (room) {
-              const entry = data.rooms.find((r) => r.room === room);
-              if (entry && !entry.available) conflicts.push(dateStr);
+          for (const entry of data?.rooms ?? []) {
+            const agg = aggregated.get(entry.room);
+            if (!agg) continue;
+            if (!entry.available) {
+              agg.available = false;
+              agg.busyDays = [...(agg.busyDays ?? []), dateStr];
+              if (!agg.conflict && entry.conflict) {
+                agg.conflict = entry.conflict;
+                agg.conflictingBookingId = entry.conflictingBookingId;
+              }
             }
           }
         }
 
-        setRooms(latestRooms);
-        setRangeConflictDays(conflicts);
+        const aggregatedList = Array.from(aggregated.values());
+        setRooms(aggregatedList);
+        if (room) {
+          const selected = aggregated.get(room);
+          setRangeConflictDays(selected?.busyDays ?? []);
+        } else {
+          setRangeConflictDays([]);
+        }
       } else {
         setRooms([]);
         setRangeConflictDays([]);

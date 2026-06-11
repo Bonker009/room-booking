@@ -1,5 +1,13 @@
-import type { Booking } from "@/lib/db";
+export type { Booking, RecurringPattern } from "@/lib/booking-model";
 
-export type { Booking };
+export type DashboardView = "table" | "calendar" | "timetable";
 
-export type DashboardView = "table" | "calendar";
+/** Prefill for create-booking dialog (calendar slot, duplicate, etc.). */
+export interface BookingDialogPrefill {
+  date?: Date;
+  startTime?: string;
+  endTime?: string;
+  groupName?: string;
+  className?: string;
+  purpose?: string;
+}

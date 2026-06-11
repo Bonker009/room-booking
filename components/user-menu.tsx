@@ -1,13 +1,15 @@
 "use client";
 
+import Link from "next/link";
 import { authClient } from "@/lib/auth-client";
+import { sessionUserHasRole } from "@/lib/session-roles";
 import { Button } from "@/components/ui/button";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { LogOut, User } from "lucide-react";
+import { LogOut, Shield, User } from "lucide-react";
 
 export function UserMenu() {
   const { data: session, isPending } = authClient.useSession();
@@ -26,9 +28,18 @@ export function UserMenu() {
     session.user.name?.trim() ||
     session.user.email?.trim() ||
     "Signed in";
+  const isAdmin = sessionUserHasRole(session.user, "role_admin");
 
   return (
     <div className="flex items-center gap-2">
+      {isAdmin ? (
+        <Button asChild variant="ghost" size="sm" className="h-8 text-primary">
+          <Link href="/admin">
+            <Shield className="mr-1 h-3.5 w-3.5" />
+            Admin
+          </Link>
+        </Button>
+      ) : null}
       <span
         className="hidden max-w-[160px] truncate text-sm text-muted-foreground sm:inline"
         title={label}

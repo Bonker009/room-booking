@@ -5,10 +5,17 @@ alwaysApply: true
 
 # room-booking — agent context
 
-Before non-trivial edits, read **`AGENTS.md`** (agent memory) and **`README.md`** (human-oriented setup and auth).
+Before non-trivial edits, read **`AGENTS.md`** (hub) and **`README.md`** (human setup).
 
-- **Auth**: Better Auth + Keycloak; SQLite `data/auth.db`; handler `app/api/auth/[...all]/route.ts`; gate `middleware.ts`; API guard `lib/require-session.ts`.
-- **Bookings**: `data/bookings.json`, `lib/db.ts`, routes under `app/api/bookings/`.
-- **Env**: `.env.example` — `BETTER_AUTH_*`, `KEYCLOAK_*`; Keycloak callback `{BETTER_AUTH_URL}/api/auth/oauth2/callback/keycloak`.
+Topic docs under **`docs/agents/`**: `bookings.md`, `auth.md`, `ui.md`, `docker.md`.
 
-When changing auth or session behavior, update **`AGENTS.md`** and **`README.md`** if contracts or paths change.
+Project skills under **`.cursor/skills/`**: `room-booking-add-feature`, `room-booking-shadcn`, `room-booking-docker`.
+
+- **Auth**: Better Auth + Keycloak; SQLite `data/auth.db`; `middleware.ts`; `lib/require-session.ts`.
+- **Bookings**: `data/bookings.db`, `lib/db.ts`, `lib/bookings-store.ts`, `app/api/bookings/`; availability panel in booking dialog.
+- **Kiosk**: `/kiosk` + `/api/kiosk/status` (public, no session).
+- **UI**: calendar + table dashboard; shadcn via CLI; no grid view.
+- **Docker**: `docker-compose.yml` → `127.0.0.1:9999:3000`, service `kshrd-booking-room`.
+- **Env**: `.env.example` — `BETTER_AUTH_*`, `KEYCLOAK_*`; callback `{BETTER_AUTH_URL}/api/auth/oauth2/callback/keycloak`.
+
+When contracts change, update **`AGENTS.md`**, the relevant **`docs/agents/*.md`**, and **`README.md`**.

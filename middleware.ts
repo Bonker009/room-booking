@@ -8,7 +8,10 @@ export function middleware(request: NextRequest) {
   if (pathname.startsWith("/api/auth")) {
     return NextResponse.next();
   }
-  if (pathname === "/sign-in") {
+  if (pathname.startsWith("/api/kiosk")) {
+    return NextResponse.next();
+  }
+  if (pathname === "/sign-in" || pathname === "/kiosk") {
     return NextResponse.next();
   }
 
@@ -24,6 +27,6 @@ export function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!api/auth|_next/static|_next/image|favicon.ico|.*\\..*).*)",
+    "/((?!api/auth|api/kiosk|_next/static|_next/image|favicon.ico|.*\\..*).*)",
   ],
 };

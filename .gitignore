@@ -37,6 +37,13 @@ yarn-error.log*
 # Better Auth SQLite (local sessions)
 /data/auth.db
 /data/auth.db-journal
+/data/auth.db-wal
+/data/auth.db-shm
+
+# Bookings SQLite
+/data/bookings.db
+/data/bookings.db-wal
+/data/bookings.db-shm
 
 # vercel
 .vercel

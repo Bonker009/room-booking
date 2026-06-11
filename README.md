@@ -7,7 +7,7 @@ Internal **room booking** dashboard: browse, create, edit, and delete reservatio
 - **Next.js 16** (App Router), **React 19**, **TypeScript**, **Tailwind CSS 4**
 - **Better Auth** + **better-sqlite3** (`data/auth.db`)
 - **Keycloak** at `keycloak.kshrd.app` via the Generic OAuth plugin (`providerId`: `keycloak`)
-- Bookings persisted in **`data/bookings.json`** (`lib/db.ts`)
+- Bookings persisted in SQLite **`data/bookings.db`** (`lib/bookings-store.ts`, `lib/db.ts`); legacy `bookings.json` imported on first run if present
 - **Calendar views** (month, week, day, year, agenda) via vendored `calendar/` module ([big-calendar](https://github.com/lramos33/big-calendar)), with drag-and-drop reschedule
 - **Multi-day bookings**: one JSON record per day, linked by optional `seriesId`
 
@@ -96,15 +96,34 @@ All booking endpoints require an authenticated session (cookie).
 - `POST /api/bookings/bulk` — create a **date-range** booking (same room/time each day; one record per day; returns created + conflict summary; HTTP 207 on partial success).
 - `GET/PUT/DELETE /api/bookings/[id]` — read, update, delete.
 
-**Rooms** are defined in `lib/rooms.ts`. The dashboard defaults to the **Calendar** view (fetches only the visible date range); switch to **Table** for server-driven search, filters, sort, and pagination.
+**Rooms** are defined in `lib/rooms.ts`. The dashboard defaults to the **Table** view (search, filters, sort, pagination). Switch to **Calendar** or **Timetable** for other layouts.
+
+**Kiosk** (no login): open **`/kiosk`** for a live room status board (TV/hallway). Data from `GET /api/kiosk/status`.
+
+**Duplicate booking**: use **Book again (next week)** in booking details or the copy icon in the table to prefill a new booking one week later.
+
+**My bookings**: Table tab filters to your Keycloak email. **Export CSV** downloads the current filtered table.
+
+**Series**: Multi-day bookings can be edited or deleted as **this day only** or **entire series**.
+
+**Timetable**: Room × time grid for a selected day (dashboard **Timetable** tab).
+
+**Recurring**: Create dialog → **Recurring** (daily/weekly/monthly until an end date).
+
+**Approval**: **Seminar** room bookings start as `pending`; admins approve at **`/admin`** (`role_admin`).
+
+**Rules**: Default work hours 08:00–18:00, 30 min–8 h duration, 90 days ahead (override via `BOOKING_*` env vars).
 
 Implementation: `app/api/bookings/**/*.ts`, storage `lib/db.ts`, calendar mapping `lib/calendar-mapping.ts`.
 
 ## Docker
 
-- `docker-compose.yml` maps **`./data`** → `/app/data` so **`bookings.json`** and **`auth.db`** persist.
-- Set the same auth-related env vars at runtime (especially `BETTER_AUTH_URL` to match how users reach the app, e.g. `http://127.0.0.1:9999` if exposed on port 9999).
+- `docker compose up -d --build` — service **`kshrd-booking-room`**, **`127.0.0.1:9999:3000`**
+- Compose mounts **`./data:/app/data`** so **`auth.db`** and **`bookings.db`** persist across rebuilds.
+- Set auth env in **`.env`** (see `docker-compose.yml` `env_file`). **`BETTER_AUTH_URL`** must match the browser origin (e.g. `http://127.0.0.1:9999`).
 - The `Dockerfile` installs build tools for `better-sqlite3` and runs Better Auth migrate after `npm run build`.
+
+Details: **`docs/agents/docker.md`**
 
 ## Scripts
 
@@ -114,7 +133,13 @@ Implementation: `app/api/bookings/**/*.ts`, storage `lib/db.ts`, calendar mappin
 | `npm run build` | Production build. |
 | `npm run start` | Start production server. |
 | `npm run lint` | ESLint. |
+| `npm run migrate:bookings` | Import `data/bookings.json` → `data/bookings.db` (see `--help`). |
 
 ## Agent / contributor note
 
-For a short architecture and “what to touch” guide for automation, see **`AGENTS.md`**.
+| Resource | Purpose |
+|----------|---------|
+| **`AGENTS.md`** | Hub — file map, env, conventions |
+| **`docs/agents/`** | Topic guides: `bookings.md`, `auth.md`, `ui.md`, `docker.md` |
+| **`.cursor/rules/`** | Scoped rules (API, UI, auth) |
+| **`.cursor/skills/`** | Workflows: add feature, shadcn, Docker |

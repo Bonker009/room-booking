@@ -6,7 +6,8 @@
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "migrate:bookings": "npx tsx scripts/migrate-bookings-from-json.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.4.0",

@@ -1,6 +1,6 @@
 import type { BookingQuery } from "@/lib/db";
 
-export type BookingTab = "today" | "upcoming" | "past" | "all";
+export type BookingTab = "today" | "upcoming" | "past" | "all" | "mine";
 
 export type BookingSortColumn =
   | "date"
@@ -43,6 +43,10 @@ export function parseBookingsSearchParams(
     roomExact: searchParams.get("roomExact") || undefined,
     dateFrom: searchParams.get("dateFrom") || undefined,
     dateTo: searchParams.get("dateTo") || undefined,
+    bookedByEmailExact: searchParams.get("bookedByEmail") || undefined,
+    recordStatus:
+      (searchParams.get("recordStatus") as ParsedBookingsQuery["recordStatus"]) ||
+      undefined,
     sortBy:
       (searchParams.get("sortBy") as ParsedBookingsQuery["sortBy"]) ||
       undefined,

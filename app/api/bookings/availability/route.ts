@@ -4,10 +4,17 @@ import { findConflictingBooking } from "@/lib/db";
 import { ROOM_OPTIONS } from "@/lib/rooms";
 import { requireApiSession } from "@/lib/require-session";
 
+export interface RoomAvailabilityConflict {
+  groupName: string;
+  startTime: string;
+  endTime: string;
+}
+
 export interface RoomAvailabilityItem {
   room: string;
   available: boolean;
   conflictingBookingId?: string;
+  conflict?: RoomAvailabilityConflict;
 }
 
 export async function GET(request: Request) {
@@ -39,6 +46,13 @@ export async function GET(request: Request) {
         room,
         available: !conflict,
         conflictingBookingId: conflict?.id,
+        conflict: conflict
+          ? {
+              groupName: conflict.groupName,
+              startTime: conflict.startTime,
+              endTime: conflict.endTime,
+            }
+          : undefined,
       });
     }
 

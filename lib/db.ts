@@ -1,43 +1,34 @@
-// Example database functions - you'll need to update these based on your actual database implementation
 import { v4 as uuidv4 } from "uuid";
-import { promises as fs } from "fs";
-import path from "path";
 import { format } from "date-fns";
 import { computeBookingStatusLabel } from "@/lib/booking-status-label";
+import {
+  deleteBookingRecord,
+  deleteBookingsBySeriesId,
+  findConflictingBookingRecord,
+  insertBookingRecord,
+  insertBookingRecords,
+  readAllBookings,
+  readBookingById,
+  readBookingsBySeriesId,
+  readBookingsForDate,
+  readPendingBookings,
+  updateBookingRecord,
+} from "@/lib/bookings-store";
+import type { Booking, RecurringPattern } from "@/lib/booking-model";
+import { ROOM_OPTIONS } from "@/lib/rooms";
 
-const DATA_PATH = path.join(process.cwd(), "data", "bookings.json");
-export interface Booking {
-  id: string;
-  date: string;
-  startTime: string;
-  endTime: string;
-  groupName: string;
-  className: string;
-  /** Display name from Keycloak / Better Auth (set by server). */
-  bookedBy?: string;
-  /** Email from Keycloak / Better Auth (set by server). */
-  bookedByEmail?: string;
-  purpose: string; // Add this required field
-  createdAt?: string;
-  updatedAt?: string;
-  // New optional fields
-  description?: string;
-  attendees?: number;
-  recurring?: RecurringPattern;
-  status?: "confirmed" | "pending" | "cancelled";
-  /** Shared id for multi-day range bookings created together. */
-  seriesId?: string;
-}
+export type { Booking, RecurringPattern };
 
 export interface BookingQuery {
   startDate?: string;
   endDate?: string;
   className?: string;
   groupName?: string;
-  /** Computed status label: Upcoming | In Progress | Completed */
   status?: string;
   search?: string;
-  tab?: "today" | "upcoming" | "past" | "all";
+  tab?: "today" | "upcoming" | "past" | "all" | "mine";
+  bookedByEmailExact?: string;
+  recordStatus?: "pending" | "confirmed" | "cancelled";
   startTimeFrom?: string;
   endTimeBy?: string;
   statusLabel?: string;
@@ -58,48 +49,31 @@ export interface BookingQuery {
   limit?: number;
 }
 
-export interface RecurringPattern {
-  frequency: "daily" | "weekly" | "monthly";
-  interval: number;
-  endDate: string;
-  daysOfWeek?: number[];
+export interface KioskNextBooking {
+  startTime: string;
+  endTime: string;
+  groupName: string;
 }
 
-// Mock implementation - replace with your actual database calls
-let bookingsData: Booking[] = [];
-
-async function readData(): Promise<Booking[]> {
-  try {
-    const str = await fs.readFile(DATA_PATH, "utf8");
-    return JSON.parse(str);
-  } catch (e) {
-    // File not found or invalid -> start with empty array
-    return [];
-  }
-}
-
-async function writeData(data: Booking[]): Promise<void> {
-  await fs.mkdir(path.dirname(DATA_PATH), { recursive: true });
-  await fs.writeFile(DATA_PATH, JSON.stringify(data, null, 2), "utf8");
-  bookingsData = data;
+export interface KioskRoomStatus {
+  room: string;
+  status: "busy" | "free";
+  groupName?: string;
+  until?: string;
+  nextBooking?: KioskNextBooking;
 }
 
 export async function getAllBookings(): Promise<Booking[]> {
-  return await readData();
+  return readAllBookings();
 }
 
 export async function getBookingById(id: string): Promise<Booking | null> {
-  // Your database implementation here
-  const bookings = await readData();
-  return bookings.find((b) => b.id === id) || null;
+  return readBookingById(id);
 }
 
 export async function addBooking(
-  booking: Omit<Booking, "id" | "createdAt">
+  booking: Omit<Booking, "id" | "createdAt">,
 ): Promise<Booking> {
-  const bookings = await readData();
-
-  // Create a new booking with a UUID and timestamp
   const newBooking: Booking = {
     id: uuidv4(),
     ...booking,
@@ -107,44 +81,23 @@ export async function addBooking(
     status: booking.status || "confirmed",
   };
 
-  // Add to the beginning of the array (newest first)
-  bookings.unshift(newBooking);
-  await writeData(bookings);
+  insertBookingRecord(newBooking);
   return newBooking;
 }
 
 export async function updateBooking(
   id: string,
-  booking: Partial<Booking>
+  booking: Partial<Booking>,
 ): Promise<Booking> {
-  // Your database implementation here
-  // Make sure to include the purpose field when updating
-  const bookings = await readData();
-  const index = bookings.findIndex((b) => b.id === id);
-  if (index !== -1) {
-    bookings[index] = {
-      ...bookings[index],
-      ...booking,
-      updatedAt: new Date().toISOString(),
-    };
-    await writeData(bookings);
-  }
+  const updated = updateBookingRecord(id, booking);
   return (
-    bookings[index] ||
+    updated ??
     ({ id, ...booking, updatedAt: new Date().toISOString() } as Booking)
   );
 }
 
 export async function removeBooking(id: string): Promise<boolean> {
-  // Your database implementation here
-  const bookings = await readData();
-  const index = bookings.findIndex((b) => b.id === id);
-  console.log("Removing booking with ID:", id, "Index found:", index);
-  if (index !== -1) {
-    bookings.splice(index, 1);
-    await writeData(bookings);
-  }
-  return index !== -1;
+  return deleteBookingRecord(id);
 }
 
 export async function findConflictingBooking(
@@ -156,17 +109,7 @@ export async function findConflictingBooking(
   },
   excludeId?: string,
 ): Promise<Booking | null> {
-  const bookings = await readData();
-  return (
-    bookings.find(
-      (b) =>
-        b.id !== excludeId &&
-        b.date === booking.date &&
-        b.className === booking.className &&
-        booking.startTime < b.endTime &&
-        booking.endTime > b.startTime,
-    ) ?? null
-  );
+  return findConflictingBookingRecord(booking, excludeId);
 }
 
 export async function checkBookingConflicts(
@@ -176,24 +119,17 @@ export async function checkBookingConflicts(
     endTime: string;
     className: string;
   },
-  excludeId?: string
+  excludeId?: string,
 ): Promise<boolean> {
-  // Your database implementation here
-  const bookings = await readData();
-  return bookings.some(
-    (b) =>
-      b.id !== excludeId &&
-      b.date === booking.date &&
-      b.className === booking.className &&
-      booking.startTime < b.endTime &&
-      booking.endTime > b.startTime
+  return (
+    (await findConflictingBookingRecord(booking, excludeId)) !== null
   );
 }
 
 export async function getBookings(
   query: BookingQuery & { bookedBy?: string },
 ): Promise<{ bookings: Booking[]; total: number }> {
-  let bookings = await readData();
+  let bookings = readAllBookings();
   const now = new Date();
   const todayStr = now.toISOString().split("T")[0];
   const hasToolbarDateRange = Boolean(query.startDate || query.endDate);
@@ -258,12 +194,21 @@ export async function getBookings(
     );
   }
 
-  if (query.bookedBy) {
+  if (query.bookedByEmailExact?.trim()) {
+    const email = query.bookedByEmailExact.trim().toLowerCase();
+    bookings = bookings.filter(
+      (b) => (b.bookedByEmail ?? "").trim().toLowerCase() === email,
+    );
+  } else if (query.bookedBy) {
     bookings = bookings.filter(
       (b) =>
         b.bookedBy &&
         b.bookedBy.toLowerCase().includes(query.bookedBy!.toLowerCase()),
     );
+  }
+
+  if (query.recordStatus) {
+    bookings = bookings.filter((b) => (b.status ?? "confirmed") === query.recordStatus);
   }
 
   if (query.startTimeFrom?.trim()) {
@@ -281,7 +226,9 @@ export async function getBookings(
     );
   }
 
-  if (!hasToolbarDateRange && query.tab && query.tab !== "all") {
+  if (query.tab === "mine" && query.bookedByEmailExact) {
+    // Email filter applied above; tab is a UX marker only.
+  } else if (!hasToolbarDateRange && query.tab && query.tab !== "all") {
     if (query.tab === "today") {
       bookings = bookings.filter((b) => b.date === todayStr);
     } else if (query.tab === "upcoming") {
@@ -365,10 +312,8 @@ export async function getBookings(
 
 export async function createRecurringBookings(
   booking: Omit<Booking, "id" | "createdAt">,
-  pattern: RecurringPattern
+  pattern: RecurringPattern,
 ): Promise<Booking[]> {
-  // Your database implementation here
-  const bookings = await readData();
   const recurringBookings: Booking[] = [];
   const startDate = new Date(booking.date);
   const endDate = new Date(pattern.endDate);
@@ -383,7 +328,6 @@ export async function createRecurringBookings(
       recurring: pattern,
     };
     recurringBookings.push(newBooking);
-    bookings.unshift(newBooking); // Add to the beginning of the array (newest first)
 
     switch (pattern.frequency) {
       case "daily":
@@ -400,7 +344,7 @@ export async function createRecurringBookings(
     }
   }
 
-  await writeData(bookings);
+  insertBookingRecords(recurringBookings);
   return recurringBookings;
 }
 
@@ -418,9 +362,8 @@ export interface RangeBookingResult {
 export async function createRangeBookings(
   booking: Omit<Booking, "id" | "createdAt" | "date">,
   startDate: string,
-  endDate: string
+  endDate: string,
 ): Promise<RangeBookingResult> {
-  const bookings = await readData();
   const created: Booking[] = [];
   const conflicts: RangeBookingConflict[] = [];
   const seriesId = uuidv4();
@@ -448,24 +391,196 @@ export async function createRangeBookings(
         message: "This room is already booked during this time",
       });
     } else {
-      const newBooking: Booking = {
+      created.push({
         id: uuidv4(),
         ...booking,
         date: dateStr,
         seriesId,
         createdAt: new Date().toISOString(),
         status: booking.status || "confirmed",
-      };
-      created.push(newBooking);
-      bookings.unshift(newBooking);
+      });
     }
 
     cursor.setDate(cursor.getDate() + 1);
   }
 
   if (created.length > 0) {
-    await writeData(bookings);
+    insertBookingRecords(created);
   }
 
   return { created, conflicts, seriesId };
+}
+
+function currentLocalTimeHHmm(now = new Date()): string {
+  const hours = now.getHours().toString().padStart(2, "0");
+  const minutes = now.getMinutes().toString().padStart(2, "0");
+  return `${hours}:${minutes}`;
+}
+
+export async function getKioskRoomStatuses(
+  date?: string,
+  now = new Date(),
+): Promise<{ date: string; asOf: string; rooms: KioskRoomStatus[] }> {
+  const dateStr = date ?? now.toISOString().split("T")[0];
+  const nowTime = currentLocalTimeHHmm(now);
+  const bookingsByRoom = new Map<string, Booking[]>();
+
+  for (const room of ROOM_OPTIONS) {
+    bookingsByRoom.set(room, []);
+  }
+
+  for (const booking of readBookingsForDate(dateStr)) {
+    const list = bookingsByRoom.get(booking.className);
+    if (list) list.push(booking);
+  }
+
+  const rooms: KioskRoomStatus[] = ROOM_OPTIONS.map((room) => {
+    const dayBookings = bookingsByRoom.get(room) ?? [];
+    const active = dayBookings.find(
+      (b) => b.startTime <= nowTime && b.endTime > nowTime,
+    );
+
+    if (active) {
+      return {
+        room,
+        status: "busy" as const,
+        groupName: active.groupName,
+        until: active.endTime,
+      };
+    }
+
+    const next = dayBookings.find((b) => b.startTime > nowTime);
+    return {
+      room,
+      status: "free" as const,
+      nextBooking: next
+        ? {
+            startTime: next.startTime,
+            endTime: next.endTime,
+            groupName: next.groupName,
+          }
+        : undefined,
+    };
+  });
+
+  return { date: dateStr, asOf: now.toISOString(), rooms };
+}
+
+export async function getBookingsBySeriesId(
+  seriesId: string,
+): Promise<Booking[]> {
+  return readBookingsBySeriesId(seriesId);
+}
+
+export async function removeBookingSeries(seriesId: string): Promise<number> {
+  return deleteBookingsBySeriesId(seriesId);
+}
+
+export interface SeriesUpdatePatch {
+  startTime?: string;
+  endTime?: string;
+  groupName?: string;
+  className?: string;
+  purpose?: string;
+  description?: string;
+}
+
+export interface SeriesUpdateResult {
+  updated: Booking[];
+  conflicts: { id: string; date: string; message: string }[];
+}
+
+export async function updateBookingSeries(
+  seriesId: string,
+  patch: SeriesUpdatePatch,
+): Promise<SeriesUpdateResult> {
+  const series = readBookingsBySeriesId(seriesId);
+  const updated: Booking[] = [];
+  const conflicts: SeriesUpdateResult["conflicts"] = [];
+
+  for (const booking of series) {
+    const next = {
+      date: booking.date,
+      startTime: patch.startTime ?? booking.startTime,
+      endTime: patch.endTime ?? booking.endTime,
+      className: patch.className ?? booking.className,
+    };
+
+    const conflict = await findConflictingBookingRecord(next, booking.id);
+    if (conflict) {
+      conflicts.push({
+        id: booking.id,
+        date: booking.date,
+        message: "Room conflict on this day",
+      });
+      continue;
+    }
+
+    const result = updateBookingRecord(booking.id, {
+      ...patch,
+      date: booking.date,
+    });
+    if (result) updated.push(result);
+  }
+
+  return { updated, conflicts };
+}
+
+export async function getPendingBookings(): Promise<Booking[]> {
+  return readPendingBookings();
+}
+
+export interface AdminBookingStats {
+  totalBookings: number;
+  pendingCount: number;
+  todayCount: number;
+  upcomingCount: number;
+  roomUtilization: { room: string; count: number }[];
+  peakHours: { hour: string; count: number }[];
+}
+
+export async function getAdminBookingStats(): Promise<AdminBookingStats> {
+  const bookings = readAllBookings();
+  const now = new Date();
+  const todayStr = now.toISOString().split("T")[0];
+
+  const roomCounts = new Map<string, number>();
+  const hourCounts = new Map<string, number>();
+
+  let todayCount = 0;
+  let upcomingCount = 0;
+
+  for (const b of bookings) {
+    roomCounts.set(b.className, (roomCounts.get(b.className) ?? 0) + 1);
+    const hour = b.startTime.split(":")[0] ?? "00";
+    hourCounts.set(hour, (hourCounts.get(hour) ?? 0) + 1);
+
+    if (b.date === todayStr) {
+      todayCount += 1;
+      const [endH, endM] = b.endTime.split(":").map(Number);
+      const end = new Date(`${b.date}T12:00:00`);
+      end.setHours(endH, endM, 0, 0);
+      if (end > now) upcomingCount += 1;
+    } else if (b.date > todayStr) {
+      upcomingCount += 1;
+    }
+  }
+
+  const roomUtilization = [...roomCounts.entries()]
+    .map(([room, count]) => ({ room, count }))
+    .sort((a, b) => b.count - a.count);
+
+  const peakHours = [...hourCounts.entries()]
+    .map(([hour, count]) => ({ hour: `${hour}:00`, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 8);
+
+  return {
+    totalBookings: bookings.length,
+    pendingCount: readPendingBookings().length,
+    todayCount,
+    upcomingCount,
+    roomUtilization,
+    peakHours,
+  };
 }

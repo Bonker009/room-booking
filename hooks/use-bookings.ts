@@ -1,12 +1,13 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 
 import type { BookingFormData } from "@/components/booking-dialog";
 import { eventToBookingPatch } from "@/lib/calendar-mapping";
 import type { Booking } from "@/lib/booking-types";
+import type { BookingCreateSuccess } from "@/lib/booking-messages";
 
 interface UseBookingMutationsOptions {
   onMutated?: () => void | Promise<void>;
@@ -14,13 +15,59 @@ interface UseBookingMutationsOptions {
 
 export function useBookingMutations(options: UseBookingMutationsOptions = {}) {
   const { onMutated } = options;
+  const [createSuccess, setCreateSuccess] =
+    useState<BookingCreateSuccess | null>(null);
 
   const afterMutate = useCallback(async () => {
     if (onMutated) await onMutated();
   }, [onMutated]);
 
+  const dismissCreateSuccess = useCallback(() => {
+    setCreateSuccess(null);
+  }, []);
+
   const handleCreateSubmit = async (formData: BookingFormData) => {
     try {
+      const body = {
+        startTime: formData.startTime,
+        endTime: formData.endTime,
+        groupName: formData.groupName,
+        className: formData.className,
+        purpose: formData.purpose,
+      };
+
+      if (formData.mode === "recurring") {
+        if (!formData.date || !formData.recurring?.endDate) {
+          throw new Error("Please select start and end dates for recurrence");
+        }
+        const res = await fetch("/api/bookings", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            ...body,
+            date: format(formData.date, "yyyy-MM-dd"),
+            recurring: {
+              frequency: formData.recurring.frequency,
+              interval: formData.recurring.interval,
+              endDate: format(formData.recurring.endDate, "yyyy-MM-dd"),
+            },
+          }),
+        });
+        const data = await res.json();
+        if (res.ok) {
+          await afterMutate();
+          const count = Array.isArray(data) ? data.length : 1;
+          setCreateSuccess({
+            title: "Recurring bookings created",
+            summary: `Created ${count} booking(s).`,
+            variant: "success",
+          });
+        } else {
+          throw new Error(data.message || "Failed to create recurring bookings");
+        }
+        return;
+      }
+
       if (formData.mode === "range") {
         if (!formData.dateRange?.from || !formData.dateRange?.to) {
           throw new Error("Please select a date range");
@@ -29,25 +76,25 @@ export function useBookingMutations(options: UseBookingMutationsOptions = {}) {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
+            ...body,
             startDate: format(formData.dateRange.from, "yyyy-MM-dd"),
             endDate: format(formData.dateRange.to, "yyyy-MM-dd"),
-            startTime: formData.startTime,
-            endTime: formData.endTime,
-            groupName: formData.groupName,
-            className: formData.className,
-            purpose: formData.purpose,
           }),
         });
         const data = await res.json();
         if (res.ok || res.status === 207) {
           await afterMutate();
           if (data.conflicts?.length) {
-            toast.warning("Partial booking created", {
-              description: data.message,
+            setCreateSuccess({
+              title: "Partial booking created",
+              summary: data.message,
+              variant: "warning",
             });
           } else {
-            toast.success("Range booking created", {
-              description: data.message,
+            setCreateSuccess({
+              title: "Range booking created",
+              summary: data.message,
+              variant: "success",
             });
           }
         } else {
@@ -63,19 +110,26 @@ export function useBookingMutations(options: UseBookingMutationsOptions = {}) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          ...body,
           date: dateString,
-          startTime: formData.startTime,
-          endTime: formData.endTime,
-          groupName: formData.groupName,
-          className: formData.className,
-          purpose: formData.purpose,
         }),
       });
       if (res.ok) {
         await afterMutate();
-        toast.success("Booking created", {
-          description: `Room booked for ${format(new Date(dateString), "PPP")}`,
-        });
+        const data = await res.json();
+        if (data.status === "pending") {
+          setCreateSuccess({
+            title: "Submitted for approval",
+            summary: "An admin will confirm this booking.",
+            variant: "pending",
+          });
+        } else {
+          setCreateSuccess({
+            title: "Booking created",
+            summary: `Room booked for ${format(new Date(dateString), "PPP")}.`,
+            variant: "success",
+          });
+        }
       } else {
         const errorData = await res.json();
         throw new Error(errorData.message || "Failed to create booking");
@@ -99,7 +153,12 @@ export function useBookingMutations(options: UseBookingMutationsOptions = {}) {
       const dateString = formData.date
         ? format(formData.date, "yyyy-MM-dd")
         : "";
-      const res = await fetch(`/api/bookings/${editingBooking.id}`, {
+      const scope =
+        formData.seriesScope === "series" && editingBooking.seriesId
+          ? "series"
+          : "single";
+      const qs = scope === "series" ? "?scope=series" : "";
+      const res = await fetch(`/api/bookings/${editingBooking.id}${qs}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -113,9 +172,15 @@ export function useBookingMutations(options: UseBookingMutationsOptions = {}) {
       });
       if (res.ok) {
         await afterMutate();
-        toast.success("Booking updated", {
-          description: `Room booking for ${format(new Date(dateString), "PPP")} has been updated`,
-        });
+        toast.success(
+          scope === "series" ? "Series updated" : "Booking updated",
+          {
+            description:
+              scope === "series"
+                ? "All days in this series were updated where possible"
+                : `Room booking for ${format(new Date(dateString), "PPP")} has been updated`,
+          },
+        );
       } else {
         const errorData = await res.json();
         throw new Error(errorData.message || "Failed to update booking");
@@ -131,13 +196,22 @@ export function useBookingMutations(options: UseBookingMutationsOptions = {}) {
     }
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (
+    id: string,
+    scope: "single" | "series" = "single",
+  ) => {
     try {
-      const result = await fetch(`/api/bookings/${id}`, { method: "DELETE" });
+      const qs = scope === "series" ? "?scope=series" : "";
+      const result = await fetch(`/api/bookings/${id}${qs}`, {
+        method: "DELETE",
+      });
       if (result.ok) {
         await afterMutate();
-        toast.success("Booking deleted", {
-          description: "The booking has been removed successfully",
+        toast.success(scope === "series" ? "Series deleted" : "Booking deleted", {
+          description:
+            scope === "series"
+              ? "All days in this series were removed"
+              : "The booking has been removed successfully",
         });
       } else {
         toast.error("Failed to delete", {
@@ -219,6 +293,8 @@ export function useBookingMutations(options: UseBookingMutationsOptions = {}) {
     handleEditSubmit,
     handleDelete,
     handleCalendarEventUpdate,
+    createSuccess,
+    dismissCreateSuccess,
   };
 }
 

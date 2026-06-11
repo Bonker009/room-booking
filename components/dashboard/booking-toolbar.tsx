@@ -1,6 +1,6 @@
 "use client";
 
-import { Filter, Search, X } from "lucide-react";
+import { Download, Filter, Search, X } from "lucide-react";
 
 import { DateRangePicker } from "@/components/date-range-picker";
 import type { DateRangeValue } from "@/components/date-range-picker";
@@ -29,6 +29,7 @@ interface BookingToolbarProps {
   onRoomFilterChange: (value: string) => void;
   onClearAll: () => void;
   showClearAll: boolean;
+  onExportCsv?: () => void;
 }
 
 export function BookingToolbar({
@@ -40,6 +41,7 @@ export function BookingToolbar({
   onRoomFilterChange,
   onClearAll,
   showClearAll,
+  onExportCsv,
 }: BookingToolbarProps) {
   return (
     <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -70,7 +72,7 @@ export function BookingToolbar({
           onDateChange={onDateRangeChange}
           placeholder="Pick a date"
           fieldClassName="w-full sm:w-auto"
-          buttonClassName="w-full min-w-[220px] justify-start border-primary/20 hover:bg-muted sm:w-[260px]"
+          buttonClassName="w-full justify-start border-primary/20 hover:bg-muted lg:min-w-[220px] sm:w-[260px]"
         />
         <Select value={roomFilter} onValueChange={onRoomFilterChange}>
           <SelectTrigger className="w-full border-primary/20 focus:ring-primary/35 sm:w-[180px]">
@@ -87,6 +89,22 @@ export function BookingToolbar({
             ))}
           </SelectContent>
         </Select>
+        {onExportCsv ? (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-10 border-primary/20"
+                onClick={onExportCsv}
+              >
+                <Download className="mr-1 h-4 w-4" />
+                Export CSV
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Download filtered bookings as CSV</TooltipContent>
+          </Tooltip>
+        ) : null}
         {showClearAll && (
           <Tooltip>
             <TooltipTrigger asChild>

@@ -229,5 +229,6 @@ export function useBookingsTable() {
     onColumnFiltersUpdate,
     onClearColumnFilter,
     refetch: fetchRows,
+    exportQueryString: buildBookingsQueryString(queryParams),
   };
 }

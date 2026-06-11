@@ -1,0 +1,18 @@
+---
+description: Dashboard, booking dialogs, table, calendar, and shadcn UI patterns
+globs: app/page.tsx,components/booking*.tsx,components/dashboard/**,components/date-range-picker.tsx,hooks/use-bookings*.ts,hooks/use-calendar-bookings.ts,hooks/use-room-availability.ts,calendar/**
+---
+
+# Booking UI
+
+Read **`docs/agents/ui.md`** before non-trivial changes.
+
+- Dashboard: table (default), calendar, and timetable views in `app/page.tsx`; shell in `components/dashboard/*`.
+- Create/edit: `components/booking-dialog.tsx` + `components/booking-room-availability-panel.tsx` + `hooks/use-room-availability.ts`.
+- Table: server-driven filters/sort/pagination via `hooks/use-bookings-table.ts` and `components/booking-views.tsx`.
+- Calendar: vendored `calendar/` + `lib/calendar-mapping.ts`; fetches visible range only.
+- Add UI primitives with **`npx shadcn@latest add <name> --yes`** — do not hand-roll `components/ui/*`.
+- Date ranges: `components/date-range-picker.tsx` with Calendar `mode="range"` (no shadcn `date-picker` block).
+- Room colors: `lib/rooms.ts`.
+
+Match existing Tailwind/shadcn patterns in sibling components.

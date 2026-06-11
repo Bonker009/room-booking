@@ -14,8 +14,14 @@ import {
   parseBookingsSearchParams,
 } from "@/lib/booking-query";
 import {
+  resolveBookingStatus,
+  validateSlotOrResponse,
+} from "@/lib/booking-api-helpers";
+import { notifyBookingEvent } from "@/lib/notifications";
+import {
   requireApiSession,
   bookingActorFromSessionUser,
+  sessionUserHasRole,
 } from "@/lib/require-session";
 
 export async function GET(request: Request) {
@@ -24,6 +30,13 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const query = parseBookingsSearchParams(searchParams);
+
+    if (query.tab === "mine") {
+      const { bookedByEmail } = bookingActorFromSessionUser(
+        authResult.session.user,
+      );
+      query.bookedByEmailExact = bookedByEmail;
+    }
 
     if (hasBookingsQueryParams(query)) {
       const { bookings, total } = await getBookings(query);
@@ -55,6 +68,7 @@ export async function POST(request: Request) {
   const { bookedBy, bookedByEmail } = bookingActorFromSessionUser(
     authResult.session.user,
   );
+  const isAdmin = sessionUserHasRole(authResult.session.user, "role_admin");
   try {
     const body = await request.json();
 
@@ -76,6 +90,20 @@ export async function POST(request: Request) {
       }
     }
 
+    const slotCheck = validateSlotOrResponse(
+      {
+        date: body.date,
+        startTime: body.startTime,
+        endTime: body.endTime,
+      },
+      isAdmin,
+    );
+    if (!slotCheck.ok) {
+      return NextResponse.json({ message: slotCheck.message }, { status: 400 });
+    }
+
+    const status = resolveBookingStatus(body.className, body.status);
+
     if (body.recurring) {
       const pattern: RecurringPattern = body.recurring;
 
@@ -87,7 +115,17 @@ export async function POST(request: Request) {
       }
 
       try {
-        const bookings = await createRecurringBookings(body, pattern);
+        const bookings = await createRecurringBookings(
+          { ...body, bookedBy, bookedByEmail, status },
+          pattern,
+        );
+        for (const booking of bookings) {
+          notifyBookingEvent({
+            event: status === "pending" ? "pending" : "created",
+            booking,
+            actorEmail: bookedByEmail,
+          });
+        }
         return NextResponse.json(bookings, { status: 201 });
       } catch {
         return NextResponse.json(
@@ -121,8 +159,13 @@ export async function POST(request: Request) {
       bookedByEmail,
       purpose: body.purpose,
       description: body.description,
-      attendees: body.attendees,
-      status: body.status,
+      status,
+    });
+
+    notifyBookingEvent({
+      event: status === "pending" ? "pending" : "created",
+      booking: newBooking,
+      actorEmail: bookedByEmail,
     });
 
     revalidateTag("bookings", "max");

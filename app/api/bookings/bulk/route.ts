@@ -3,8 +3,15 @@ import { revalidateTag } from "next/cache";
 
 import { createRangeBookings } from "@/lib/db";
 import {
+  resolveBookingStatus,
+  validateRangeOrResponse,
+  validateSlotOrResponse,
+} from "@/lib/booking-api-helpers";
+import { notifyBookingEvent } from "@/lib/notifications";
+import {
   requireApiSession,
   bookingActorFromSessionUser,
+  sessionUserHasRole,
 } from "@/lib/require-session";
 
 export async function POST(request: Request) {
@@ -36,6 +43,30 @@ export async function POST(request: Request) {
       }
     }
 
+    const isAdmin = sessionUserHasRole(authResult.session.user, "role_admin");
+    const rangeCheck = validateRangeOrResponse(
+      body.startDate,
+      body.endDate,
+      isAdmin,
+    );
+    if (!rangeCheck.ok) {
+      return NextResponse.json({ message: rangeCheck.message }, { status: 400 });
+    }
+
+    const slotCheck = validateSlotOrResponse(
+      {
+        date: body.startDate,
+        startTime: body.startTime,
+        endTime: body.endTime,
+      },
+      isAdmin,
+    );
+    if (!slotCheck.ok) {
+      return NextResponse.json({ message: slotCheck.message }, { status: 400 });
+    }
+
+    const status = resolveBookingStatus(body.className, body.status);
+
     const result = await createRangeBookings(
       {
         startTime: body.startTime,
@@ -46,12 +77,19 @@ export async function POST(request: Request) {
         bookedByEmail,
         purpose: body.purpose,
         description: body.description,
-        attendees: body.attendees,
-        status: body.status,
+        status,
       },
       body.startDate,
       body.endDate,
     );
+
+    for (const booking of result.created) {
+      notifyBookingEvent({
+        event: status === "pending" ? "pending" : "created",
+        booking,
+        actorEmail: bookedByEmail,
+      });
+    }
 
     if (result.created.length === 0) {
       return NextResponse.json(
@@ -65,7 +103,7 @@ export async function POST(request: Request) {
 
     revalidateTag("bookings", "max");
 
-    const status = result.conflicts.length > 0 ? 207 : 201;
+    const httpStatus = result.conflicts.length > 0 ? 207 : 201;
     return NextResponse.json(
       {
         message:
@@ -74,7 +112,7 @@ export async function POST(request: Request) {
             : `Created ${result.created.length} booking(s)`,
         ...result,
       },
-      { status },
+      { status: httpStatus },
     );
   } catch (error) {
     console.error("Error creating range bookings:", error);

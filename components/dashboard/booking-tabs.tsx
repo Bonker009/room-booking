@@ -1,6 +1,6 @@
 "use client";
 
-import { BookOpen, CalendarIcon, Clock, Filter } from "lucide-react";
+import { BookOpen, CalendarIcon, Clock, Filter, User } from "lucide-react";
 
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
@@ -28,6 +28,10 @@ export function BookingTabs({ activeTab, onTabChange }: BookingTabsProps) {
           <TabsTrigger value="past" className={triggerClass}>
             <Filter className="h-4 w-4 shrink-0" />
             <span>Past</span>
+          </TabsTrigger>
+          <TabsTrigger value="mine" className={triggerClass}>
+            <User className="h-4 w-4 shrink-0" />
+            <span>My bookings</span>
           </TabsTrigger>
           <TabsTrigger value="all" className={triggerClass}>
             <BookOpen className="h-4 w-4 shrink-0" />

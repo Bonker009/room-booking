@@ -10,5 +10,5 @@ services:
     ports:
       - "127.0.0.1:9999:3000"
     volumes:
-      # Persist bookings.json on the host (same path as dev)
-      - ./data/bookings.json:/app/data/bookings.json
+      # Persist auth.db, bookings.db, and legacy bookings.json on the host
+      - ./data:/app/data

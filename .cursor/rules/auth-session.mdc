@@ -1,0 +1,17 @@
+---
+description: Better Auth, Keycloak OAuth, middleware, and session guards
+globs: lib/auth*.ts,middleware.ts,app/sign-in/**,app/api/auth/**,lib/require-session.ts,lib/session-roles.ts
+---
+
+# Auth & sessions
+
+Read **`docs/agents/auth.md`** before non-trivial changes.
+
+- Better Auth + SQLite `data/auth.db`; Keycloak provider id **`keycloak`**.
+- Route handler: `app/api/auth/[...all]/route.ts`; gate: `middleware.ts` → `/sign-in`.
+- APIs: `requireApiSession()` in `lib/require-session.ts`.
+- Edit/delete authorization: `lib/session-roles.ts` — owner email or Keycloak role **`role_admin`**.
+- Redirect URI in Keycloak: `{BETTER_AUTH_URL}/api/auth/oauth2/callback/keycloak`.
+- After schema changes: `npx @better-auth/cli@latest migrate --config lib/auth.ts --yes`.
+
+Update **`AGENTS.md`**, **`docs/agents/auth.md`**, and **`README.md`** if env or redirect contracts change.

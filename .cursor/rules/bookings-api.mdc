@@ -1,0 +1,19 @@
+---
+description: Bookings API, storage, conflicts, and query contracts
+globs: app/api/bookings/**,lib/db.ts,lib/booking-*.ts,hooks/use-bookings*.ts,hooks/use-room-availability.ts
+---
+
+# Bookings API & data
+
+Read **`docs/agents/bookings.md`** before non-trivial changes.
+
+- Storage: SQLite `data/bookings.db` via `lib/bookings-store.ts`; business logic in `lib/db.ts`. Legacy `bookings.json` auto-imported once if DB empty.
+- All routes under `app/api/bookings/` require `requireApiSession()` from `lib/require-session.ts`.
+- `bookedBy` / `bookedByEmail` come from the session on create/update — never trust the client body.
+- Conflict check: same date + room (`className`) + overlapping HH:mm times.
+- List endpoint: filtered GET returns `{ bookings, total, page, limit, totalPages }`; query parsing in `lib/booking-query.ts`.
+- Availability: `GET /api/bookings/availability` — busy rooms include optional `conflict` summary for the panel UI.
+- Bulk range: `POST /api/bookings/bulk` — one record per day, shared `seriesId`; HTTP 207 on partial success.
+- Rooms: `lib/rooms.ts` (`ROOM_OPTIONS`) is the canonical room list.
+
+When adding query params or response fields, update `docs/agents/bookings.md` and **`AGENTS.md`**.

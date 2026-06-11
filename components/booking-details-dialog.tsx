@@ -1,6 +1,6 @@
 "use client"
 import { format } from "date-fns"
-import { CalendarIcon, Building2, PersonStandingIcon, FileText, X, Mail } from "lucide-react"
+import { CalendarIcon, Building2, PersonStandingIcon, FileText, X, Mail, Copy } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
@@ -12,9 +12,15 @@ interface BookingDetailsDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   booking: Booking | null
+  onDuplicate?: (booking: Booking) => void
 }
 
-export function BookingDetailsDialog({ open, onOpenChange, booking }: BookingDetailsDialogProps) {
+export function BookingDetailsDialog({
+  open,
+  onOpenChange,
+  booking,
+  onDuplicate,
+}: BookingDetailsDialogProps) {
   if (!booking) return null
 
   const formatDate = (dateString: string) => {
@@ -161,6 +167,23 @@ export function BookingDetailsDialog({ open, onOpenChange, booking }: BookingDet
               </div>
             </div>
           </div>
+
+          {onDuplicate ? (
+            <div className="border-t border-border px-6 py-4">
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full sm:w-auto"
+                onClick={() => {
+                  onDuplicate(booking)
+                  onOpenChange(false)
+                }}
+              >
+                <Copy className="mr-2 h-4 w-4" />
+                Book again (next week)
+              </Button>
+            </div>
+          ) : null}
         </div>
       </DialogContent>
     </Dialog>

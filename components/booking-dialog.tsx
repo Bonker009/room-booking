@@ -1,8 +1,20 @@
 "use client"
 import type React from "react"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { format } from "date-fns"
-import { CalendarIcon, Users, Building2, PersonStandingIcon, FileText, CheckCircle2, XCircle } from "lucide-react"
+import {
+  CalendarIcon,
+  Users,
+  Building2,
+  PersonStandingIcon,
+  FileText,
+  CheckCircle2,
+  XCircle,
+  HelpCircle,
+  Repeat,
+  Hash,
+  CalendarRange,
+} from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -22,25 +34,29 @@ import { TimeField } from "@/components/ui/time-field"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import { DateRangePicker, type DateRangeValue } from "@/components/date-range-picker"
-import { ROOM_OPTIONS } from "@/lib/rooms"
+import { ROOM_OPTIONS, roomRequiresApproval } from "@/lib/rooms"
 import { authClient } from "@/lib/auth-client"
-import type { Booking } from "@/lib/booking-types"
+import type { Booking, BookingDialogPrefill } from "@/lib/booking-types"
+
+export type { BookingDialogPrefill }
 import { useRoomAvailability } from "@/hooks/use-room-availability"
-import { Badge } from "@/components/ui/badge"
+import { RoomAvailabilityPanel } from "@/components/booking-room-availability-panel"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 
 interface BookingDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onSubmit: (bookingData: BookingFormData) => Promise<void>
   editingBooking?: Booking | null
-  prefill?: {
-    date?: Date
-    startTime?: string
-    endTime?: string
-  } | null
+  prefill?: BookingDialogPrefill | null
 }
 
-export type BookingMode = "single" | "range"
+export type BookingMode = "single" | "range" | "recurring"
+export type SeriesScope = "single" | "series"
 
 export interface BookingFormData {
   mode: BookingMode
@@ -51,6 +67,12 @@ export interface BookingFormData {
   groupName: string
   className: string
   purpose: string
+  recurring?: {
+    frequency: "daily" | "weekly" | "monthly"
+    interval: number
+    endDate: Date
+  }
+  seriesScope?: SeriesScope
 }
 
 export function BookingDialog({
@@ -69,6 +91,10 @@ export function BookingDialog({
   const [groupName, setGroupName] = useState("")
   const [room, setRoom] = useState("")
   const [purpose, setPurpose] = useState("")
+  const [recurringEndDate, setRecurringEndDate] = useState<Date | undefined>()
+  const [recurringFrequency, setRecurringFrequency] = useState<"daily" | "weekly" | "monthly">("weekly")
+  const [recurringInterval, setRecurringInterval] = useState("1")
+  const [seriesScope, setSeriesScope] = useState<SeriesScope>("single")
   const { data: session, isPending: sessionPending } = authClient.useSession()
   const actorName =
     session?.user?.name?.trim() ||
@@ -77,7 +103,7 @@ export function BookingDialog({
   const [errors, setErrors] = useState<Record<string, string>>({})
 
   const {
-    availableRooms,
+    rooms: availabilityRooms,
     selectedRoomAvailable,
     rangeConflictDays,
     isLoading: availabilityLoading,
@@ -102,15 +128,17 @@ export function BookingDialog({
       setGroupName(editingBooking.groupName)
       setRoom(editingBooking.className)
       setPurpose(editingBooking.purpose || "")
+      setSeriesScope("single")
     } else if (prefill) {
       setBookingMode("single")
       setDate(prefill.date ?? new Date())
       setDateRange(undefined)
       setStartTime(prefill.startTime ?? "")
       setEndTime(prefill.endTime ?? "")
-      setGroupName("")
-      setRoom("")
-      setPurpose("")
+      setGroupName(prefill.groupName ?? "")
+      setRoom(prefill.className ?? "")
+      setPurpose(prefill.purpose ?? "")
+      setSeriesScope("single")
     } else {
       const now = new Date()
       setBookingMode("single")
@@ -124,12 +152,38 @@ export function BookingDialog({
       setGroupName("")
       setRoom("")
       setPurpose("")
+      setRecurringEndDate(undefined)
+      setSeriesScope("single")
     }
   }, [editingBooking, open, prefill])
 
+  const slotLabel = useMemo(() => {
+    if (!startTime || !endTime || startTime >= endTime) return null;
+    const timePart = `${startTime}–${endTime}`;
+    if ((bookingMode === "single" || bookingMode === "recurring") && date) {
+      return `${format(date, "MMM d, yyyy")} · ${timePart}`;
+    }
+    if (bookingMode === "range" && dateRange?.from && dateRange?.to) {
+      return `${format(dateRange.from, "MMM d, yyyy")} – ${format(dateRange.to, "MMM d, yyyy")} · ${timePart}`;
+    }
+    return null;
+  }, [bookingMode, date, dateRange, startTime, endTime]);
+
+  const availabilityPanel = (
+    <RoomAvailabilityPanel
+      rooms={availabilityRooms}
+      isLoading={availabilityLoading}
+      slotLabel={slotLabel}
+      selectedRoom={room}
+      onSelectRoom={setRoom}
+      bookingMode={bookingMode}
+      rangeConflictDays={rangeConflictDays}
+    />
+  );
+
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {}
-    if (bookingMode === "single") {
+    if (bookingMode === "single" || bookingMode === "recurring") {
       if (!date) newErrors.date = "Please select a date"
     } else if (!dateRange?.from || !dateRange?.to) {
       newErrors.dateRange = "Please select a start and end date"
@@ -142,6 +196,17 @@ export function BookingDialog({
     if (!room) newErrors.room = "Please select a room"
     if (!purpose.trim()) newErrors.purpose = "Please enter the purpose of booking"
 
+    if (bookingMode === "recurring") {
+      if (!recurringEndDate) newErrors.recurringEnd = "Please select a recurrence end date"
+      else if (date && recurringEndDate < date) {
+        newErrors.recurringEnd = "End date must be on or after start date"
+      }
+      const interval = Number.parseInt(recurringInterval, 10)
+      if (!Number.isFinite(interval) || interval < 1) {
+        newErrors.recurringInterval = "Interval must be at least 1"
+      }
+    }
+
     if (startTime && endTime) {
       if (startTime >= endTime) {
         newErrors.endTime = "End time must be after start time"
@@ -149,7 +214,10 @@ export function BookingDialog({
     }
 
     if (!newErrors.endTime && room && startTime && endTime && startTime < endTime) {
-      if (bookingMode === "single" && selectedRoomAvailable === false) {
+      if (
+        (bookingMode === "single" || bookingMode === "recurring") &&
+        selectedRoomAvailable === false
+      ) {
         newErrors.conflict = "This room is already booked during this time"
       } else if (bookingMode === "range" && rangeConflictDays.length > 0) {
         newErrors.conflict = `Room conflicts on ${rangeConflictDays.length} day(s) in this range`
@@ -175,6 +243,15 @@ export function BookingDialog({
         groupName,
         className: room,
         purpose,
+        recurring:
+          bookingMode === "recurring" && date && recurringEndDate
+            ? {
+                frequency: recurringFrequency,
+                interval: Number.parseInt(recurringInterval, 10) || 1,
+                endDate: recurringEndDate,
+              }
+            : undefined,
+        seriesScope: editingBooking?.seriesId ? seriesScope : undefined,
       })
       // Reset form
       if (!editingBooking) {
@@ -197,7 +274,7 @@ export function BookingDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[90vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-[640px]">
+      <DialogContent className="flex max-h-[90vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-[min(960px,95vw)]">
         <div className="bg-gradient-to-r from-primary to-[#003d6b] px-5 py-3 text-primary-foreground">
           <DialogHeader className="gap-1">
             <DialogTitle className="text-xl font-bold leading-tight">
@@ -214,12 +291,13 @@ export function BookingDialog({
           onSubmit={handleSubmit}
           className="flex min-h-0 flex-1 flex-col overflow-hidden"
         >
-          <div className="min-h-0 flex-1 overflow-y-auto p-6">
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden sm:flex-row">
+            <div className="min-h-0 flex-1 overflow-y-auto p-6">
             <div className="grid grid-cols-1 gap-x-4 gap-y-4 sm:grid-cols-2">
               {!editingBooking && (
                 <div className="space-y-2 sm:col-span-2">
                   <Label className="text-sm font-medium">Booking type</Label>
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
                     <Button
                       type="button"
                       variant={bookingMode === "single" ? "default" : "outline"}
@@ -234,117 +312,208 @@ export function BookingDialog({
                     >
                       Date range
                     </Button>
+                    <Button
+                      type="button"
+                      variant={bookingMode === "recurring" ? "default" : "outline"}
+                      onClick={() => setBookingMode("recurring")}
+                    >
+                      Recurring
+                    </Button>
                   </div>
                 </div>
               )}
 
-              {bookingMode === "single" ? (
-                <div className="space-y-2 sm:col-span-2">
-                  <Label htmlFor="date" className="text-sm font-medium">
-                    Date
-                  </Label>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        className={cn(
-                          "w-full justify-start text-left font-normal",
-                          !date && "text-muted-foreground",
-                          errors.date ? "border-destructive" : "border-input",
-                        )}
-                      >
-                        <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
-                        <span className="truncate">
-                          {date ? format(date, "PPP") : "Select a date"}
-                        </span>
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={date}
-                        onSelect={setDate}
-                        initialFocus
-                        disabled={(d) => d < new Date(new Date().setHours(0, 0, 0, 0))}
+              <div className="grid grid-cols-1 gap-4 sm:col-span-2 sm:grid-cols-2">
+                <div className="space-y-2">
+                  {bookingMode === "single" || bookingMode === "recurring" ? (
+                    <>
+                      <Label htmlFor="date" className="text-sm font-medium">
+                        {bookingMode === "recurring" ? "Start date" : "Date"}
+                      </Label>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            id="date"
+                            variant="outline"
+                            className={cn(
+                              "w-full justify-start text-left font-normal",
+                              !date && "text-muted-foreground",
+                              errors.date ? "border-destructive" : "border-input",
+                            )}
+                          >
+                            <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
+                            <span className="truncate">
+                              {date ? format(date, "PPP") : "Select a date"}
+                            </span>
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={date}
+                            onSelect={setDate}
+                            initialFocus
+                            disabled={(d) =>
+                              d < new Date(new Date().setHours(0, 0, 0, 0))
+                            }
+                          />
+                        </PopoverContent>
+                      </Popover>
+                      {errors.date && (
+                        <p className="text-sm text-destructive">{errors.date}</p>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <DateRangePicker
+                        date={dateRange}
+                        onDateChange={setDateRange}
+                        label="Date range"
+                        placeholder="Select start and end dates"
+                        buttonClassName="w-full"
                       />
-                    </PopoverContent>
-                  </Popover>
-                  {errors.date && <p className="text-sm text-destructive">{errors.date}</p>}
-                </div>
-              ) : (
-                <div className="space-y-2 sm:col-span-2">
-                  <DateRangePicker
-                    date={dateRange}
-                    onDateChange={setDateRange}
-                    label="Date range"
-                    placeholder="Select start and end dates"
-                    buttonClassName="w-full"
-                  />
-                  {errors.dateRange && (
-                    <p className="text-sm text-destructive">{errors.dateRange}</p>
+                      {errors.dateRange && (
+                        <p className="text-sm text-destructive">{errors.dateRange}</p>
+                      )}
+                    </>
                   )}
                 </div>
-              )}
 
-              {/* Room */}
-              <div className="space-y-2 sm:col-span-2">
-                <Label htmlFor="room" className="text-sm font-medium">
-                  Room
-                </Label>
-                <Select value={room} onValueChange={setRoom}>
-                  <SelectTrigger
-                    id="room"
-                    className={cn(errors.room ? "border-destructive w-full" : "border-input w-full")}
-                  >
-                    <div className="flex min-w-0 items-center">
-                      <Building2 className="mr-2 h-4 w-4 shrink-0 text-muted-foreground" />
-                      <SelectValue placeholder="Select a room" />
-                    </div>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {ROOM_OPTIONS.map((roomOption) => (
-                      <SelectItem key={roomOption} value={roomOption}>
-                        {roomOption}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {errors.room && <p className="text-sm text-destructive">{errors.room}</p>}
-                {room && startTime && endTime && startTime < endTime && (
-                  <div className="mt-1 flex items-center gap-1.5 text-sm">
-                    {availabilityLoading ? (
-                      <span className="text-muted-foreground">Checking availability…</span>
-                    ) : selectedRoomAvailable === true ? (
-                      <>
-                        <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                        <span className="text-emerald-700 dark:text-emerald-400">{room} is available</span>
-                      </>
-                    ) : selectedRoomAvailable === false ? (
-                      <>
-                        <XCircle className="h-4 w-4 text-destructive" />
-                        <span className="text-destructive">{room} is busy for this time</span>
-                      </>
+                <div className="space-y-2">
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                    <Label htmlFor="room" className="text-sm font-medium">
+                      Room
+                    </Label>
+                    {room && startTime && endTime && startTime < endTime ? (
+                      <span className="inline-flex items-center gap-1 text-xs font-medium">
+                        {availabilityLoading ? (
+                          <span className="text-muted-foreground">Checking…</span>
+                        ) : selectedRoomAvailable === true ? (
+                          <>
+                            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                            <span className="text-emerald-700 dark:text-emerald-400">
+                              {room} is available
+                            </span>
+                          </>
+                        ) : selectedRoomAvailable === false ? (
+                          <>
+                            <XCircle className="h-3.5 w-3.5 text-destructive" />
+                            <span className="text-destructive">
+                              {room} is busy for this time
+                            </span>
+                          </>
+                        ) : null}
+                      </span>
                     ) : null}
                   </div>
-                )}
-                {availableRooms.length > 0 && startTime && endTime && (
-                  <div className="mt-2 space-y-1.5">
-                    <p className="text-xs font-medium text-muted-foreground">Available rooms</p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {availableRooms.map((roomName) => (
-                        <Badge
-                          key={roomName}
-                          variant={room === roomName ? "default" : "secondary"}
-                          className="cursor-pointer"
-                          onClick={() => setRoom(roomName)}
-                        >
-                          {roomName}
-                        </Badge>
+                  <Select value={room} onValueChange={setRoom}>
+                    <SelectTrigger
+                      id="room"
+                      className={cn(
+                        errors.room ? "border-destructive w-full" : "border-input w-full",
+                      )}
+                    >
+                      <div className="flex min-w-0 items-center">
+                        <Building2 className="mr-2 h-4 w-4 shrink-0 text-muted-foreground" />
+                        <SelectValue placeholder="Select a room" />
+                      </div>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {ROOM_OPTIONS.map((roomOption) => (
+                        <SelectItem key={roomOption} value={roomOption}>
+                          {roomOption}
+                        </SelectItem>
                       ))}
-                    </div>
-                  </div>
-                )}
+                    </SelectContent>
+                  </Select>
+                  {errors.room && (
+                    <p className="text-sm text-destructive">{errors.room}</p>
+                  )}
+                </div>
               </div>
+
+              {!editingBooking && room && roomRequiresApproval(room) ? (
+                <p className="text-xs text-amber-700 sm:col-span-2 dark:text-amber-400">
+                  This room requires admin approval before confirmation.
+                </p>
+              ) : null}
+
+              {bookingMode === "recurring" && !editingBooking ? (
+                <div className="grid grid-cols-1 gap-4 sm:col-span-2 sm:grid-cols-3">
+                  <div className="space-y-2">
+                    <RecurringFieldLabel
+                      label="Frequency"
+                      help="How often the booking repeats: daily, weekly, or monthly."
+                    />
+                    <Select
+                      value={recurringFrequency}
+                      onValueChange={(v) =>
+                        setRecurringFrequency(v as "daily" | "weekly" | "monthly")
+                      }
+                    >
+                      <SelectTrigger>
+                        <div className="flex items-center gap-2">
+                          <Repeat className="h-4 w-4 shrink-0 text-muted-foreground" />
+                          <SelectValue />
+                        </div>
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="daily">Daily</SelectItem>
+                        <SelectItem value="weekly">Weekly</SelectItem>
+                        <SelectItem value="monthly">Monthly</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <RecurringFieldLabel
+                      label="Every"
+                      help="Repeat every N days, weeks, or months. Example: 2 with Weekly books every two weeks."
+                    />
+                    <div className="relative">
+                      <Hash className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        type="number"
+                        min={1}
+                        className="pl-9"
+                        value={recurringInterval}
+                        onChange={(e) => setRecurringInterval(e.target.value)}
+                      />
+                    </div>
+                    {errors.recurringInterval && (
+                      <p className="text-sm text-destructive">{errors.recurringInterval}</p>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <RecurringFieldLabel
+                      label="Until"
+                      help="Last date in the series. One booking is created for each occurrence from the start date through this day."
+                    />
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" className="w-full justify-start">
+                          <CalendarRange className="mr-2 h-4 w-4 shrink-0" />
+                          {recurringEndDate
+                            ? format(recurringEndDate, "PPP")
+                            : "End date"}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={recurringEndDate}
+                          onSelect={setRecurringEndDate}
+                          disabled={(d) =>
+                            date ? d < date : d < new Date(new Date().setHours(0, 0, 0, 0))
+                          }
+                        />
+                      </PopoverContent>
+                    </Popover>
+                    {errors.recurringEnd && (
+                      <p className="text-sm text-destructive">{errors.recurringEnd}</p>
+                    )}
+                  </div>
+                </div>
+              ) : null}
 
               {/* Start / End time */}
               <div className="space-y-2">
@@ -372,6 +541,8 @@ export function BookingDialog({
                 />
                 {errors.endTime && <p className="text-sm text-destructive">{errors.endTime}</p>}
               </div>
+
+              <div className="sm:hidden sm:col-span-2">{availabilityPanel}</div>
 
               {/* Group name + Booked by */}
               <div className="space-y-2">
@@ -429,6 +600,30 @@ export function BookingDialog({
                 {errors.purpose && <p className="text-sm text-destructive">{errors.purpose}</p>}
               </div>
 
+              {editingBooking?.seriesId ? (
+                <div className="space-y-2 sm:col-span-2">
+                  <Label className="text-sm font-medium">Apply changes to</Label>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={seriesScope === "single" ? "default" : "outline"}
+                      onClick={() => setSeriesScope("single")}
+                    >
+                      This day only
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={seriesScope === "series" ? "default" : "outline"}
+                      onClick={() => setSeriesScope("series")}
+                    >
+                      Entire series
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
+
               {errors.conflict && (
                 <div className="sm:col-span-2 flex items-start rounded-md border border-destructive/25 bg-destructive/10 px-4 py-3 text-destructive">
                   <div className="mr-2 mt-0.5 shrink-0">⚠️</div>
@@ -438,6 +633,10 @@ export function BookingDialog({
                   </div>
                 </div>
               )}
+            </div>
+            </div>
+            <div className="bg-muted/20 hidden min-h-0 w-full shrink-0 overflow-y-auto border-t p-4 sm:flex sm:w-[280px] sm:flex-col sm:border-t-0 sm:border-l">
+              {availabilityPanel}
             </div>
           </div>
 
@@ -469,5 +668,33 @@ export function BookingDialog({
         </form>
       </DialogContent>
     </Dialog>
+  )
+}
+
+function RecurringFieldLabel({
+  label,
+  help,
+}: {
+  label: string
+  help: string
+}) {
+  return (
+    <div className="flex items-center gap-1.5">
+      <Label className="text-sm font-medium">{label}</Label>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            className="rounded-full text-muted-foreground transition-colors hover:text-foreground"
+            aria-label={`How to use ${label}`}
+          >
+            <HelpCircle className="h-3.5 w-3.5" />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="top" className="max-w-[240px] text-sm leading-snug">
+          {help}
+        </TooltipContent>
+      </Tooltip>
+    </div>
   )
 }

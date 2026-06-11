@@ -30,11 +30,6 @@ export function CalendarWeekView({ singleDayEvents, multiDayEvents }: IProps) {
 
   return (
     <>
-      <div className="flex flex-col items-center justify-center border-b py-4 text-sm text-muted-foreground sm:hidden">
-        <p>Weekly view is not available on smaller devices.</p>
-        <p>Please switch to daily or monthly view.</p>
-      </div>
-
       <div className="hidden flex-col sm:flex">
         <div className="shrink-0">
           <WeekViewMultiDayEventsRow selectedDate={selectedDate} multiDayEvents={multiDayEvents} />

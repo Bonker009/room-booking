@@ -1,46 +1,81 @@
 # Agent memory — room-booking
 
-Use this file as the **canonical project context** for assistants and automation. Keep it accurate when auth, data paths, or env contracts change.
+Canonical context for Cursor agents and automation. Keep this file accurate when auth, APIs, data paths, or env contracts change.
 
 ## Purpose
 
-- **KSHRD Room Booking System**: Next.js dashboard for room reservations.
-- **Auth**: Users must sign in via **Keycloak** (`keycloak.kshrd.app`); app uses **Better Auth** with SQLite at `data/auth.db`.
-- **Data**: Bookings live in **`data/bookings.json`** (not a SQL DB).
+- **KSHRD Room Booking System**: Next.js dashboard for room reservations (calendar + table views).
+- **Auth**: Keycloak OIDC via **Better Auth**; SQLite at `data/auth.db`.
+- **Data**: Bookings in SQLite **`data/bookings.db`** (`lib/bookings-store.ts`); import from legacy `data/bookings.json` via auto-migrate on first run or **`npm run migrate:bookings`**.
 
-## Do not assume
+## Agent docs (read by topic)
 
-- README boilerplate alone; use **`README.md`** (this repo) and **`AGENTS.md`** for behavior.
-- Logo path `/kshrd-logo.png` may be missing from `public/` until provided.
+| Doc | When to use |
+|-----|-------------|
+| [docs/agents/bookings.md](docs/agents/bookings.md) | APIs, `lib/db.ts`, conflicts, availability, bulk range |
+| [docs/agents/auth.md](docs/agents/auth.md) | Keycloak, sessions, middleware, roles |
+| [docs/agents/ui.md](docs/agents/ui.md) | Dashboard, dialogs, table, calendar, shadcn |
+| [docs/agents/docker.md](docs/agents/docker.md) | Dockerfile, compose, production env |
 
-## Files to read before changes
+## Project skills (`.cursor/skills/`)
 
-| Task | Read first |
-|------|------------|
-| Auth / login / session | `lib/auth.ts`, `lib/auth-client.ts`, `middleware.ts`, `app/sign-in/page.tsx` |
-| Protecting routes or APIs | `middleware.ts`, `lib/require-session.ts` |
-| Bookings CRUD / conflicts | `lib/db.ts`, `app/api/bookings/route.ts`, `app/api/bookings/[id]/route.ts`, `app/api/bookings/bulk/route.ts`, `app/api/bookings/availability/route.ts` |
-| Main UI | `app/page.tsx`, `components/booking-*.tsx`, `components/booking-calendar.tsx`, `components/booking-views.tsx`, `hooks/use-bookings-table.ts`, `hooks/use-calendar-bookings.ts` |
-| Calendar views | `calendar/` (vendored from [big-calendar](https://github.com/lramos33/big-calendar)), `lib/calendar-mapping.ts`, `lib/rooms.ts` |
+| Skill | Trigger |
+|-------|---------|
+| `room-booking-add-feature` | New booking UI/API behavior |
+| `room-booking-shadcn` | Adding or updating UI primitives |
+| `room-booking-docker` | Container build/deploy |
+
+## Cursor rules (`.cursor/rules/`)
+
+- `project-context.mdc` — always on; points here + README
+- `bookings-api.mdc` — `app/api/bookings/**`, `lib/db.ts`
+- `booking-ui.mdc` — booking components, hooks, calendar
+- `auth-session.mdc` — auth, middleware, sign-in
+
+## Quick file map
+
+| Area | Primary paths |
+|------|----------------|
+| Dashboard shell | `app/page.tsx`, `components/dashboard/*` |
+| Create/edit booking | `components/booking-dialog.tsx`, `hooks/use-room-availability.ts`, `components/booking-room-availability-panel.tsx` |
+| Table | `components/booking-views.tsx`, `lib/booking-display.ts`, `hooks/use-bookings-table.ts` |
+| Calendar | `components/booking-calendar.tsx`, `calendar/`, `lib/calendar-mapping.ts` |
+| Bookings API | `app/api/bookings/**`, `lib/db.ts`, `lib/bookings-store.ts`, `lib/booking-query.ts` |
+| Kiosk (public) | `app/kiosk/page.tsx`, `app/api/kiosk/status/route.ts` |
+| Duplicate booking | `lib/duplicate-booking.ts`, table/details “Book again” actions |
+| My bookings / CSV | Table tab `mine`; `GET /api/bookings/export` |
+| Series edit/delete | `?scope=series` on PUT/DELETE; dialog + table UI |
+| Timetable view | `components/room-timetable.tsx`, dashboard view `timetable` |
+| Booking rules | `lib/booking-rules.ts`, `lib/booking-api-helpers.ts` |
+| Admin | `/admin`, `GET /api/admin/stats`, `GET /api/admin/pending`, `POST /api/bookings/[id]/approve` |
+| Notifications | `lib/notifications.ts` — optional `BOOKING_NOTIFY_WEBHOOK` |
+| Auth | `lib/auth.ts`, `middleware.ts`, `lib/require-session.ts`, `lib/session-roles.ts` |
+| Rooms | `lib/rooms.ts` (`ROOM_OPTIONS`, badge colors) |
 
 ## Environment (minimal)
 
-- `BETTER_AUTH_SECRET` (≥32 chars in prod), `BETTER_AUTH_URL` (no trailing slash).
-- `KEYCLOAK_CLIENT_ID`, `KEYCLOAK_CLIENT_SECRET`, `KEYCLOAK_ISSUER` (`https://keycloak.kshrd.app/realms/<realm>`).
-- Keycloak **redirect URI**: `{BETTER_AUTH_URL}/api/auth/oauth2/callback/keycloak`.
-- Copy from **`.env.example`** → `.env.local`.
+Copy `.env.example` → `.env.local` (dev) or `.env` (Docker).
+
+- `BETTER_AUTH_SECRET` (≥32 chars prod), `BETTER_AUTH_URL` (no trailing slash)
+- `KEYCLOAK_CLIENT_ID`, `KEYCLOAK_CLIENT_SECRET`, `KEYCLOAK_ISSUER`
+- Keycloak redirect: `{BETTER_AUTH_URL}/api/auth/oauth2/callback/keycloak`
 
 ## Conventions
 
-- OAuth provider id for Keycloak: **`keycloak`** (Better Auth Generic OAuth).
-- Booking APIs return **401** without session (`requireApiSession` in `lib/require-session.ts`). `bookedBy` / `bookedByEmail` are set server-side from the Keycloak/Better Auth session, not from the request body.
-- **Rooms** are centralized in `lib/rooms.ts` (`ROOM_OPTIONS`, colors).
-- **Calendar UI**: month/week/day/year/agenda views in `calendar/`; bookings mapped via `lib/calendar-mapping.ts` (`bookingToEvent`). Calendar fetches only the **visible date range** via `GET /api/bookings?startDate&endDate`. Drag-drop reschedule calls `PUT /api/bookings/[id]`.
-- **Table UI**: server-driven search, tab filters, column filters, sort, and pagination via `GET /api/bookings` query params (`hooks/use-bookings-table.ts`).
-- **Room availability**: `GET /api/bookings/availability?date&startTime&endTime` used by `components/booking-dialog.tsx` (debounced free/busy + available rooms list).
-- **Multi-day range booking**: `POST /api/bookings/bulk` creates one record per day (shared `seriesId`); per-day conflict check; partial success returns HTTP 207.
-- After schema changes for Better Auth, run: `npx @better-auth/cli@latest migrate --config lib/auth.ts --yes`.
+- OAuth provider id: **`keycloak`**
+- Booking APIs: **401** without session (`requireApiSession`)
+- `bookedBy` / `bookedByEmail`: set **server-side** from session, not request body
+- Edit/delete: owner email match or Keycloak role **`role_admin`** (`lib/session-roles.ts`)
+- UI components: prefer **`npx shadcn@latest add <name>`** over hand-rolling `components/ui/*`
+- After Better Auth schema changes: `npx @better-auth/cli@latest migrate --config lib/auth.ts --yes`
+- Next.js 16 may warn **middleware → proxy**; `middleware.ts` still valid until migrated
 
-## Next.js notes
+## Do not assume
 
-- Build may warn about **middleware → proxy** (Next.js 16); `middleware.ts` is still valid until migrated.
+- README alone; use **this file** + topic docs + `README.md`
+- `/kshrd-logo.png` exists in `public/` until provided
+- `date-picker` exists in shadcn registry (use `components/date-range-picker.tsx` + `Calendar` `mode="range"`)
+
+## Human docs
+
+Setup and Keycloak steps: **`README.md`**.

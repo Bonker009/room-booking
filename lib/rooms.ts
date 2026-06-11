@@ -13,6 +13,13 @@ export const ROOM_OPTIONS = [
 
 export type RoomName = (typeof ROOM_OPTIONS)[number];
 
+/** Rooms that require admin approval before confirmation. */
+export const APPROVAL_REQUIRED_ROOMS: readonly RoomName[] = ["Seminar"] as const;
+
+export function roomRequiresApproval(room: string): boolean {
+  return (APPROVAL_REQUIRED_ROOMS as readonly string[]).includes(room);
+}
+
 /** Calendar event color per room. */
 export const ROOM_COLORS: Record<string, TEventColor> = {
   BTB: "purple",

@@ -4,8 +4,12 @@ import {
   getBookingById,
   updateBooking,
   removeBooking,
+  removeBookingSeries,
+  updateBookingSeries,
   checkBookingConflicts,
 } from "@/lib/db";
+import { validateSlotOrResponse } from "@/lib/booking-api-helpers";
+import { notifyBookingEvent } from "@/lib/notifications";
 import {
   requireApiSession,
   bookingActorFromSessionUser,
@@ -86,24 +90,20 @@ export async function PUT(
       return NextResponse.json({ message: "Forbidden" }, { status: 403 });
     }
 
-    const hasConflict = await checkBookingConflicts(
+    const slotCheck = validateSlotOrResponse(
       {
         date: body.date,
         startTime: body.startTime,
         endTime: body.endTime,
-        className: body.className,
       },
-      id
+      isAdmin,
     );
-
-    if (hasConflict) {
-      return NextResponse.json(
-        { message: "This room is already booked during this time" },
-        { status: 409 }
-      );
+    if (!slotCheck.ok) {
+      return NextResponse.json({ message: slotCheck.message }, { status: 400 });
     }
 
-    const updatedBooking = await updateBooking(id, {
+    const scope = new URL(request.url).searchParams.get("scope");
+    const patch = {
       date: body.date,
       startTime: body.startTime,
       endTime: body.endTime,
@@ -113,11 +113,69 @@ export async function PUT(
       bookedByEmail,
       purpose: body.purpose,
       description: body.description,
-      attendees: body.attendees,
       status: body.status,
+    };
+
+    if (scope === "series" && existingBooking.seriesId) {
+      const seriesResult = await updateBookingSeries(existingBooking.seriesId, {
+        startTime: body.startTime,
+        endTime: body.endTime,
+        groupName: body.groupName,
+        className: body.className,
+        purpose: body.purpose,
+        description: body.description,
+      });
+
+      if (seriesResult.updated.length === 0) {
+        return NextResponse.json(
+          {
+            message: "No bookings updated — conflicts on all series days",
+            conflicts: seriesResult.conflicts,
+          },
+          { status: 409 },
+        );
+      }
+
+      for (const booking of seriesResult.updated) {
+        notifyBookingEvent({
+          event: "updated",
+          booking,
+          actorEmail: bookedByEmail,
+        });
+      }
+
+      revalidateTag("bookings", "max");
+      return NextResponse.json({
+        updated: seriesResult.updated,
+        conflicts: seriesResult.conflicts,
+      });
+    }
+
+    const hasConflict = await checkBookingConflicts(
+      {
+        date: body.date,
+        startTime: body.startTime,
+        endTime: body.endTime,
+        className: body.className,
+      },
+      id,
+    );
+
+    if (hasConflict) {
+      return NextResponse.json(
+        { message: "This room is already booked during this time" },
+        { status: 409 },
+      );
+    }
+
+    const updatedBooking = await updateBooking(id, patch);
+
+    notifyBookingEvent({
+      event: "updated",
+      booking: updatedBooking,
+      actorEmail: bookedByEmail,
     });
 
-    // Revalidate bookings cache
     revalidateTag("bookings", "max");
 
     return NextResponse.json(updatedBooking);
@@ -160,14 +218,33 @@ export async function DELETE(
       );
     }
 
+    const scope = request.nextUrl.searchParams.get("scope");
+
+    if (scope === "series" && existingBooking.seriesId) {
+      const removed = await removeBookingSeries(existingBooking.seriesId);
+      notifyBookingEvent({
+        event: "deleted",
+        booking: existingBooking,
+        actorEmail: bookedByEmail,
+      });
+      revalidateTag("bookings", "max");
+      return NextResponse.json({ success: true, removed });
+    }
+
     const success = await removeBooking(id);
 
     if (!success) {
       return NextResponse.json(
         { message: "Booking not found" },
-        { status: 404 }
+        { status: 404 },
       );
     }
+
+    notifyBookingEvent({
+      event: "deleted",
+      booking: existingBooking,
+      actorEmail: bookedByEmail,
+    });
 
     revalidateTag("bookings", "max");
 
